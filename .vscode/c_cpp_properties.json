@@ -1,0 +1,36 @@
+{
+  "configurations": [
+    {
+      "name": "ESP32 Arduino",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "/home/codespace/.arduino15/packages/esp32/hardware/esp32/3.3.8/cores/esp32",
+        "/home/codespace/.arduino15/packages/esp32/hardware/esp32/3.3.8/variants/esp32",
+        "/home/codespace/.arduino15/packages/esp32/hardware/esp32/3.3.8/libraries/**",
+        "/home/codespace/Arduino/libraries/PubSubClient/src",
+        "/home/codespace/Arduino/libraries/ArduinoJson/src",
+        "/home/codespace/Arduino/libraries/OneWire",
+        "/home/codespace/Arduino/libraries/DallasTemperature",
+        "/home/codespace/Arduino/libraries/MPU6050",
+        "/home/codespace/Arduino/libraries/arduinoFFT/src",
+        "/home/codespace/.arduino15/packages/esp32/tools/esp-x32/2601/xtensa-esp32-elf/include",
+        "/home/codespace/.arduino15/packages/esp32/tools/esp-x32/2601/lib/gcc/xtensa-esp32-elf/14.2.0/include"
+      ],
+      "forcedInclude": [
+        "/home/codespace/.arduino15/packages/esp32/hardware/esp32/3.3.8/cores/esp32/Arduino.h"
+      ],
+      "defines": [
+        "ARDUINO=10819",
+        "ESP32",
+        "ESP_PLATFORM",
+        "F_CPU=240000000L",
+        "SIMULATE=1"
+      ],
+      "compilerPath": "/home/codespace/.arduino15/packages/esp32/tools/esp-x32/2601/bin/xtensa-esp32-elf-gcc",
+      "cStandard": "gnu17",
+      "cppStandard": "gnu++17",
+      "intelliSenseMode": "gcc-x64"
+    }
+  ],
+  "version": 4
+}

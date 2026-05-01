@@ -1,4 +1,9 @@
 services:
+  mosquitto:
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"
+    command: mosquitto -c /mosquitto-no-auth.conf
   postgres:
     image: postgres:18
     environment:

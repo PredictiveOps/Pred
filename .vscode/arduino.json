@@ -1,0 +1,7 @@
+{
+  "board": "esp32:esp32:esp32s3",
+  "port": "/dev/ttyUSB0",
+  "sketch": "edge-device/esp32/edge_device/edge_device.ino",
+  "output": ".build",
+  "configuration": "FlashMode=qio,FlashFreq=80,UploadSpeed=921600,DebugLevel=none,PSRAM=opi,PartitionScheme=default"
+}
