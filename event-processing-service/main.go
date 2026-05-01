@@ -3,17 +3,21 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/segmentio/kafka-go"
 	"gorm.io/gorm"
 
+	"event-processing-service/api"
 	"event-processing-service/db"
 )
 
@@ -32,6 +36,7 @@ func main() {
 	topic := getEnv("KAFKA_TOPIC", "events")
 	groupID := getEnv("KAFKA_GROUP_ID", "event-processing-service")
 	dbURL := getEnv("DATABASE_URL", "postgres://localhost:5432/events")
+	httpPort := getEnv("HTTP_PORT", "8080")
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -44,6 +49,25 @@ func main() {
 		defer sqlDB.Close()
 	}
 	log.Println("connected to database")
+
+	server := &http.Server{
+		Addr:    ":" + httpPort,
+		Handler: api.NewRouter(gdb),
+	}
+	go func() {
+		log.Printf("http listening on :%s", httpPort)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("http server error: %v", err)
+		}
+	}()
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("http shutdown error: %v", err)
+		}
+	}()
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: strings.Split(brokers, ","),
