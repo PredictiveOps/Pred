@@ -1,2 +1,10 @@
 fastapi
 uvicorn
+kafka-python
+pandas
+numpy
+scipy
+psycopg2-binary
+scikit-learn
+joblib
+requests
