@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -15,6 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	"event-processing-service/db"
+	"event-processing-service/internal/app"
 )
 
 // RawEvent is the minimal envelope extracted from each Kafka message.
@@ -45,6 +44,8 @@ func main() {
 	}
 	log.Println("connected to database")
 
+	svc := app.NewService(gdb)
+
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: strings.Split(brokers, ","),
 		Topic:   topic,
@@ -65,24 +66,20 @@ func main() {
 			continue
 		}
 
-		if err := handleMessage(ctx, gdb, msg); err != nil {
+		if err := handleMessage(ctx, svc, msg); err != nil {
 			log.Printf("handle error (offset %d): %v", msg.Offset, err)
 		}
 	}
 }
 
-func handleMessage(ctx context.Context, gdb *gorm.DB, msg kafka.Message) error {
-	var event RawEvent
-	if err := json.Unmarshal(msg.Value, &event); err != nil {
-		return fmt.Errorf("unmarshal: %w", err)
-	}
-
-	id, err := db.InsertEvent(ctx, gdb, event.TenantID, msg.Value)
+func handleMessage(ctx context.Context, svc *app.Service, msg kafka.Message) error {
+	id, err := svc.Ingest(ctx, msg.Value)
 	if err != nil {
-		return fmt.Errorf("insert event: %w", err)
+		return err
 	}
 
-	return process(ctx, gdb, id, event, msg.Value)
+	log.Printf("event stored (id %d, %d bytes)", id, len(msg.Value))
+	return nil
 }
 
 // process is a stub for downstream event processing logic.

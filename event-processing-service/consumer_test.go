@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"event-processing-service/db"
+	"event-processing-service/internal/app"
 )
 
 func openTestDB(t *testing.T) *gorm.DB {
@@ -50,7 +51,8 @@ func TestHandleMessage_InsertsEvent(t *testing.T) {
 		"value":     42,
 	}
 
-	if err := handleMessage(ctx, gdb, makeMessage(t, body)); err != nil {
+	svc := app.NewService(gdb)
+	if err := handleMessage(ctx, svc, makeMessage(t, body)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -69,7 +71,8 @@ func TestHandleMessage_InvalidJSON(t *testing.T) {
 	ctx := context.Background()
 
 	msg := kafka.Message{Value: []byte(`not valid json`)}
-	err := handleMessage(ctx, gdb, msg)
+	svc := app.NewService(gdb)
+	err := handleMessage(ctx, svc, msg)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
 	}
