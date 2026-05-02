@@ -1,76 +1,45 @@
 package handlers
 
 import (
-	"errors"
-	"net/http"
-	"strconv"
+	"context"
+	"log"
+	"strings"
 
-	"ingestion-service/db"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+	"ingestion-service/services"
 )
 
-func RegisterDevice(c *gin.Context) {
-	var device db.Device
-	if err := c.ShouldBindJSON(&device); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
-		return
-	}
+var kafkaProducer *services.KafkaProducer
 
-	if device.Name == "" || device.TenantID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name and tenant_id are required"})
-		return
-	}
-
-	if err := db.AddDevice(&device); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register device"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, device)
+func SetKafkaProducer(producer *services.KafkaProducer) {
+	kafkaProducer = producer
 }
 
-func GetDevices(c *gin.Context) {
-	tenantIDParam := c.Query("tenant_id")
-	if tenantIDParam == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tenant_id query param is required"})
+// TODO: Need to check the deviceID with the database and only publish to Kafka if the device is registered.
+// This will prevent unregistered devices from flooding Kafka with data.
+func HandleMQTTMessage(_ mqtt.Client, msg mqtt.Message) {
+	deviceID := extractDeviceIDFromTopic(msg.Topic())
+	log.Printf("mqtt message received: topic=%s deviceID=%s payload_bytes=%d", msg.Topic(), deviceID, len(msg.Payload()))
+
+	if kafkaProducer == nil {
+		log.Printf("kafka producer is not initialized; skipping publish")
+		return
+	}
+	if err := kafkaProducer.Publish(context.Background(), deviceID, msg.Payload()); err != nil {
+		log.Printf("failed to publish message to kafka: %v", err)
 		return
 	}
 
-	tenantID64, err := strconv.ParseUint(tenantIDParam, 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid tenant_id"})
-		return
-	}
-
-	devices, err := db.GetAllDevicesByTenantID(uint(tenantID64))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve devices"})
-		return
-	}
-
-	c.JSON(http.StatusOK, devices)
+	log.Printf("published message to kafka with key=%s", deviceID)
 }
 
-func GetDeviceByID(c *gin.Context) {
-	idParam := c.Param("id")
-	id64, err := strconv.ParseUint(idParam, 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid device id"})
-		return
+// sample topic: devices/{deviceID}/data
+func extractDeviceIDFromTopic(topic string) string {
+	parts := strings.Split(topic, "/")
+	if len(parts) >= 2 && parts[0] == "devices" {
+		return parts[1]
 	}
 
-	device, err := db.GetDeviceByID(uint(id64))
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "device not found"})
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve device"})
-		return
-	}
-
-	c.JSON(http.StatusOK, device)
+	return topic
 }

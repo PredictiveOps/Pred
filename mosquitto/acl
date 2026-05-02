@@ -1,0 +1,8 @@
+# Device publishers must connect with a client ID equal to the device ID
+# used in the topic path so they can only publish to their own topic.
+pattern write devices/%c/data
+
+user pred-ingestion
+topic deny devices/+/data
+topic read devices/+/data
+topic read $SYS/broker/version

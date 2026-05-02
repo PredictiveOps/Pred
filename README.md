@@ -12,13 +12,13 @@ This repository contains all the code to all the services.
 
 ### Prerequisites
 
-| Tool           | Version | Install                                                                                                                                                                |
-| -------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| git            | >=2.0   | [git-scm.com/downloads](https://git-scm.com/downloads)                                                                                                                 |
-| golang         | >=1.23  | [go.dev/doc/install](https://go.dev/doc/install)                                                                                                                       |
-| node           | >=20    | [nodejs.org/en/download](https://nodejs.org/en/download)                                                                                                               |
-| Docker         | >=20.10 | [docs.docker.com/get-docker](https://docs.docker.com/get-docker/)                                                                                                      |
-| Docker Compose | >=2.0   | [docs.docker.com/compose/install](https://docs.docker.com/compose/install/). Or Docker Desktop. Or if you are on macOS, you can use [OrbStack](https://orbstack.dev/). |
+| Tool           | Version | Install                                                                                                                                        |
+| -------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| git            | >=2.0   | [git-scm.com/downloads](https://git-scm.com/downloads)                                                                                         |
+| golang         | >=1.23  | [go.dev/doc/install](https://go.dev/doc/install)                                                                                               |
+| node           | >=20    | [nodejs.org/en/download](https://nodejs.org/en/download)                                                                                       |
+| Docker         | >=20.10 | [docs.docker.com/get-docker](https://docs.docker.com/get-docker/)                                                                              |
+| Docker Compose | >=2.0   | [docs.docker.com/compose/install](https://docs.docker.com/compose/install/). Or Docker Desktop. Or [OrbStack](https://orbstack.dev/) on macOS. |
 
 ### Installation
 
@@ -29,7 +29,7 @@ git clone https://github.com/PredictiveOps/Pred.git
 cd Pred
 ```
 
-Start the shared infrastructure (Postgres on host port `5433`, Kafka on `9092`). The Postgres container creates the databases listed in `POSTGRES_MULTIPLE_DATABASES` on first boot:
+Start the shared infrastructure (Postgres on host port `5433`, Kafka on `9092`, Mosquitto MQTTS on `8883`). The Postgres container creates the databases listed in `POSTGRES_MULTIPLE_DATABASES` on first boot:
 
 ```sh
 docker compose up -d
@@ -57,9 +57,18 @@ Set up the web frontend:
 
 ```sh
 cd web-frontend
+cp .env.example .env
 npm install
 npm run dev
 ```
+
+### Keycloak Setup
+
+For authentication setup, see [keycloak/README.md](./keycloak/README.md).
+
+### Mosquitto Setup
+
+For MQTT broker setup and credentials, see [mosquitto/README.md](./mosquitto/README.md).
 
 ### Running tests
 

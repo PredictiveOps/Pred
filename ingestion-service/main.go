@@ -40,12 +40,16 @@ func main() {
 		}
 	}()
 
-	mqttClient := services.CreateMQTTClient(
+	mqttClient, err := services.CreateMQTTClient(
 		config.MQTTBroker,
 		config.MQTTClientID,
 		config.MQTTUsername,
 		config.MQTTPassword,
+		config.MQTTCACert,
 	)
+	if err != nil {
+		log.Fatalf("Failed to create MQTT client: %v", err)
+	}
 
 	if err := services.ConnectMQTTClient(mqttClient); err != nil {
 		log.Fatalf("MQTT connection failed: %v", err)
