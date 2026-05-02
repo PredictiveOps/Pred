@@ -10,10 +10,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ingestion-service .
 FROM alpine:3.23
 WORKDIR /app
 COPY --from=builder /app/ingestion-service .
-EXPOSE 8080
+EXPOSE 8081
 
 # Default environment variables
-ENV PORT=8080
+ENV PORT=8081
 ENV DATABASE_URL="postgres://postgres:postgres@host.docker.internal:5433/ingestion?sslmode=disable"
 ENV KAFKA_BROKERS="host.docker.internal:9092"
 ENV KAFKA_TOPIC="ingestion_events"

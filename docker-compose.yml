@@ -16,6 +16,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - pred-network
 
   kafka:
     image: apache/kafka:latest
@@ -31,6 +33,8 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
       - "9092:9092"
+    networks:
+      - pred-network
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -48,10 +52,44 @@ services:
       - mosquitto_log:/mosquitto/log
     entrypoint: ["/bin/sh", "/mosquitto/config/entrypoint.sh"]
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/config/certs/ca.crt -u \"$${MQTT_INGESTION_USERNAME}\" -P \"$${MQTT_INGESTION_PASSWORD}\" -t '$$SYS/broker/version' -C 1 -W 5 >/dev/null 2>&1"]
+      test:
+        [
+          "CMD-SHELL",
+          'mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/config/certs/ca.crt -u "$${MQTT_INGESTION_USERNAME}" -P "$${MQTT_INGESTION_PASSWORD}" -t ''$$SYS/broker/version'' -C 1 -W 5 >/dev/null 2>&1',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - pred-network
+
+  ingestion-service:
+    build: ./ingestion-service
+    environment:
+      PORT: ${INGESTION_PORT:-8081}
+      DATABASE_URL: ${INGESTION_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/ingestion}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-device-events}
+      MQTT_BROKER: ${MQTT_BROKER:-ssl://mosquitto:8883}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-ingestion-service}
+      MQTT_TOPIC: ${MQTT_TOPIC:-devices/+/telemetry}
+      MQTT_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
+      MQTT_PASSWORD: ${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
+      MQTT_CA_CERT: ${MQTT_CA_CERT:-/mosquitto/certs/ca.crt}
+    ports:
+      - "${INGESTION_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      # mosquitto:
+      #   condition: service_healthy
+    volumes:
+      - ./mosquitto/certs:/mosquitto/certs:ro
+    networks:
+      - pred-network
+    restart: on-failure
 
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.1
@@ -82,8 +120,14 @@ services:
     volumes:
       - ./keycloak/entrypoint.sh:/opt/keycloak-config/entrypoint.sh:ro
       - ./keycloak/configure.sh:/opt/keycloak-config/configure.sh:ro
+    networks:
+      - pred-network
 
 volumes:
   postgres_data:
   mosquitto_data:
   mosquitto_log:
+
+networks:
+  pred-network:
+    driver: bridge
