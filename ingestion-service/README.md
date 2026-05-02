@@ -21,11 +21,12 @@ Devices are persisted in PostgreSQL. Schema is managed by GORM via `AutoMigrate`
 | `DATABASE_URL`    | required                       | PostgreSQL connection string                                                |
 | `KAFKA_BROKERS`   | `localhost:9092`               | Comma-separated list of Kafka bootstrap brokers                             |
 | `KAFKA_TOPIC`     | required                       | Kafka topic used for published device events                                |
-| `MQTT_BROKER`     | `tcp://localhost:1883`         | MQTT broker URL                                                             |
+| `MQTT_BROKER`     | `ssl://localhost:8883`         | MQTT broker URL                                                             |
 | `MQTT_CLIENT_ID`  | required                       | MQTT client ID                                                              |
 | `MQTT_TOPIC`      | required                       | MQTT topic subscribed to for device data                                    |
 | `MQTT_USERNAME`   | optional                       | MQTT username                                                               |
 | `MQTT_PASSWORD`   | optional                       | MQTT password                                                               |
+| `MQTT_CA_CERT`    | optional                       | CA certificate path for private/self-signed MQTTS broker certificates       |
 
 ## Running
 
