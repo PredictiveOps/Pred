@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"event-processing-service/db"
 	"event-processing-service/internal/app"
+	"event-processing-service/internal/httpapi"
 )
 
 // RawEvent is the minimal envelope extracted from each Kafka message.
@@ -45,6 +47,16 @@ func main() {
 	log.Println("connected to database")
 
 	svc := app.NewService(gdb)
+
+	mux := http.NewServeMux()
+	httpapi.NewHandler(svc).Register(mux)
+
+	go func() {
+		log.Println("HTTP server listening on :8080")
+		if err := http.ListenAndServe(":8080", mux); err != nil {
+			log.Fatalf("HTTP server failed: %v", err)
+		}
+	}()
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: strings.Split(brokers, ","),
