@@ -1,0 +1,18 @@
+{
+  "title": "Bearing Predictive Maintenance Logs",
+  "id": "ruththra/bearing-predictive-maintenance-logs",
+  "subtitle": "Time-series vibration and operating logs for anomaly detection",
+  "description": "Hourly bearing log files used for predictive maintenance and anomaly detection experiments.",
+  "isPrivate": true,
+  "keywords": [
+    "predictive-maintenance",
+    "anomaly-detection",
+    "time-series",
+    "bearing"
+  ],
+  "licenses": [
+    {
+      "name": "CC0-1.0"
+    }
+  ]
+} 

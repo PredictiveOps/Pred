@@ -21,3 +21,6 @@ build/
 .idea/
 *.swp
 .DS_Store
+/dataset
+/results/processed
+.venv

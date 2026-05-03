@@ -1,0 +1,20 @@
+Feature and Model Summary Report
+================================
+
+number_of_files_discovered: 129
+number_of_files_processed: 129
+number_of_skipped_files: 0
+total_extracted_windows: 125775
+vibration_x_detected: True
+vibration_y_detected: True
+temperature_bearing_detected: True
+temperature_atmospheric_detected: True
+final_feature_column_count: 51
+label_distribution: {'normal': 75465, 'warning': 31443, 'critical': 18867}
+model_accuracy: 0.7469846948916716
+confusion_matrix: [[65231, 7912, 2322], [8627, 17496, 5320], [1607, 6035, 11225]]
+confusion_matrix_path: /kaggle/working/reports/confusion_matrix.csv
+feature_extraction_report_path: /kaggle/working/reports/feature_extraction_report.txt
+model_saved_path: /kaggle/working/models/vibration_isolation_forest.pkl
+feature_csv_path: /kaggle/working/processed/bearing_features.csv
+evaluation_report_path: /kaggle/working/reports/model_evaluation_report.txt
