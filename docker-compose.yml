@@ -123,6 +123,110 @@ services:
     networks:
       - pred-network
 
+  web-frontend:
+    build: ./web-frontend
+    environment:
+      NODE_ENV: production
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-32-character-secret-key-here-change-in-production}
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-prod-maintenance}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-web-frontend}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
+    ports:
+      - "${WEB_FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      keycloak:
+        condition: service_started
+    networks:
+      - pred-network
+    restart: on-failure
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  event-processing-service:
+    build: ./event-processing-service
+    environment:
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-events}
+      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-event-processing-service}
+      DATABASE_URL: ${EVENT_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/events}
+      HTTP_PORT: ${EVENT_HTTP_PORT:-8080}
+    ports:
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - pred-network
+    restart: on-failure
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  notifications-service:
+    build: ./notifications-service
+    environment:
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-notifications}
+      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-notifications-service}
+      DATABASE_URL: ${NOTIFICATIONS_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/notifications}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - pred-network
+    restart: on-failure
+
+  ml-service:
+    build: ./ai-ml
+    environment:
+      ML_PORT: ${ML_PORT:-8000}
+      ML_LOG_LEVEL: ${ML_LOG_LEVEL:-info}
+    ports:
+      - "${ML_PORT:-8000}:8000"
+    networks:
+      - pred-network
+    restart: on-failure
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8000/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
   mosquitto_data:
