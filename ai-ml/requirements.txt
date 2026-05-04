@@ -9,3 +9,4 @@ scikit-learn==1.6.1
 pydantic==2.13.3
 pydantic-settings==2.14.0
 requests==2.33.1
+kafka-python
