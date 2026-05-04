@@ -115,6 +115,14 @@ environment variables. The password database is regenerated on container start.
 `MQTT_CA_CERT` pointing at the CA that signed the broker certificate, and that
 the certificate SAN matches the hostname in `MQTT_BROKER`.
 
+**⚠️ TLS Certificate Verification in Production:**
+The current configuration uses `InsecureSkipVerify: true` in the ingestion service which disables TLS certificate validation. This is acceptable for local development but **must be disabled in production**.
+
+Before deploying to production:
+1. Generate proper TLS certificates with SANs covering your broker's hostname(s)
+2. Set `InsecureSkipVerify: false` in `ingestion-service/services/MQTT.service.go`
+3. Configure all clients to verify the broker's certificate against a trusted CA
+
 **Ingestion service cannot connect:** use `ssl://localhost:8883` when running
 the ingestion service locally with `go run .`. Use `ssl://mosquitto:8883` only
 when the ingestion service runs inside Docker Compose.

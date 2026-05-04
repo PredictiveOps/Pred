@@ -32,25 +32,36 @@ func openTestDB(t *testing.T) *gorm.DB {
 	return gdb
 }
 
-func TestAddDevice(t *testing.T) {
+func TestRegisterDeviceForTenant(t *testing.T) {
 	openTestDB(t)
 
-	device := &db.Device{Name: "Pump A", Description: "Main pump", TenantID: 1001, IsActive: true}
-	if err := db.AddDevice(device); err != nil {
-		t.Fatalf("AddDevice: %v", err)
+	device, err := db.RegisterDeviceForTenant(5001, 1001)
+	if err != nil {
+		t.Fatalf("RegisterDeviceForTenant: %v", err)
 	}
-	if device.ID == 0 {
+	if device.DeviceID == 0 {
 		t.Fatal("expected non-zero device ID")
+	}
+	if device.TenantID != 1001 {
+		t.Fatalf("expected tenant_id 1001, got %d", device.TenantID)
+	}
+	if device.PublicKey != nil {
+		t.Fatal("expected empty public key on HTTP registration")
+	}
+	if device.IsActive {
+		t.Fatal("expected device to be inactive until MQTT registration")
 	}
 }
 
-func TestGetAllDevicesByTenantID(t *testing.T) {
+func TestGetDevicesByTenantID(t *testing.T) {
 	gdb := openTestDB(t)
 
+	pk1 := "key1"
+	pk2 := "key2"
 	devices := []db.Device{
-		{Name: "Device 1", TenantID: 2001, IsActive: true},
-		{Name: "Device 2", TenantID: 2001, IsActive: false},
-		{Name: "Other Tenant", TenantID: 2002, IsActive: true},
+		{DeviceID: 100, TenantID: 2001, PublicKey: &pk1, IsActive: true},
+		{DeviceID: 101, TenantID: 2001, PublicKey: &pk2, IsActive: false},
+		{DeviceID: 102, TenantID: 2002, PublicKey: &pk1, IsActive: true},
 	}
 	for i := range devices {
 		if err := gdb.Create(&devices[i]).Error; err != nil {
@@ -58,70 +69,52 @@ func TestGetAllDevicesByTenantID(t *testing.T) {
 		}
 	}
 
-	got, err := db.GetAllDevicesByTenantID(2001)
+	got, err := db.GetDevicesByTenantID(2001)
 	if err != nil {
-		t.Fatalf("GetAllDevicesByTenantID: %v", err)
+		t.Fatalf("GetDevicesByTenantID: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %d devices, want 2", len(got))
 	}
 }
 
-func TestGetActiveDevicesByTenantID(t *testing.T) {
+func TestGetDeviceByID(t *testing.T) {
 	gdb := openTestDB(t)
 
-	devices := []db.Device{
-		{Name: "Active", TenantID: 3001, IsActive: true},
-		{Name: "Inactive", TenantID: 3001, IsActive: false},
-	}
-	for i := range devices {
-		if err := gdb.Create(&devices[i]).Error; err != nil {
-			t.Fatalf("seed device: %v", err)
-		}
-	}
-
-	got, err := db.GetActiveDevicesByTenantID(3001)
-	if err != nil {
-		t.Fatalf("GetActiveDevicesByTenantID: %v", err)
-	}
-	if len(got) != 1 || got[0].Name != "Active" {
-		t.Fatalf("unexpected active devices: %+v", got)
-	}
-}
-
-func TestGetDeviceByID_UpdateDevice_DeleteDevice(t *testing.T) {
-	gdb := openTestDB(t)
-
-	device := db.Device{Name: "Original", Description: "desc", TenantID: 4001, IsActive: true}
+	pk := "test-key"
+	device := db.Device{DeviceID: 4001, TenantID: 4001, PublicKey: &pk, IsActive: true}
 	if err := gdb.Create(&device).Error; err != nil {
 		t.Fatalf("seed device: %v", err)
 	}
 
-	found, err := db.GetDeviceByID(device.ID)
+	found, err := db.GetDeviceByID(4001)
 	if err != nil {
 		t.Fatalf("GetDeviceByID: %v", err)
 	}
-	if found.Name != "Original" {
-		t.Fatalf("got device %q, want %q", found.Name, "Original")
+	if found.DeviceID != 4001 {
+		t.Fatalf("got device_id %d, want 4001", found.DeviceID)
+	}
+	if found.TenantID != 4001 {
+		t.Fatalf("got tenant_id %d, want 4001", found.TenantID)
 	}
 
-	updated := &db.Device{Name: "Updated", Description: "new desc", TenantID: 4001, IsActive: false}
-	if err := db.UpdateDevice(device.ID, updated); err != nil {
-		t.Fatalf("UpdateDevice: %v", err)
+	newPK := "updated-key"
+	if err := db.UpdateDevicePublicKey(4001, newPK); err != nil {
+		t.Fatalf("UpdateDevicePublicKey: %v", err)
 	}
 
-	found, err = db.GetDeviceByID(device.ID)
+	found, err = db.GetDeviceByID(4001)
 	if err != nil {
 		t.Fatalf("GetDeviceByID after update: %v", err)
 	}
-	if found.Name != "Updated" || found.Description != "new desc" || found.IsActive {
+	if found.PublicKey == nil || *found.PublicKey != newPK {
 		t.Fatalf("unexpected updated device: %+v", found)
 	}
 
-	if err := db.DeleteDevice(device.ID); err != nil {
+	if err := db.DeleteDeviceByID(4001); err != nil {
 		t.Fatalf("DeleteDevice: %v", err)
 	}
-	if _, err := db.GetDeviceByID(device.ID); err == nil {
+	if _, err := db.GetDeviceByID(4001); err == nil {
 		t.Fatal("expected error after delete, got nil")
 	}
 }

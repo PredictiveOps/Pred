@@ -1,1 +1,5 @@
 .env
+scripts/*
+!scripts/README.md
+!scripts/*.sh
+!scripts/*.py

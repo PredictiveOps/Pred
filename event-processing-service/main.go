@@ -33,7 +33,7 @@ func main() {
 	groupID := getEnv("KAFKA_GROUP_ID", "event-processing-service")
 	dbURL := getEnv("DATABASE_URL", "postgres://localhost:5432/events")
 	httpPort := getEnv("HTTP_PORT", "8081")
-	mlURL := getEnv("ML_SERVICE_URL", "http://localhost:8082/predict")
+	mlTopic := getEnv("ML_FEATURES_TOPIC", "ml-features")
 	windowSecs := getEnvInt("WINDOW_DURATION_SECONDS", 5)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -48,15 +48,25 @@ func main() {
 	}
 	log.Println("connected to database")
 
-	mlClient := processor.NewMLClient(mlURL)
+	mlSink := processor.NewKafkaFeatureSink(strings.Split(brokers, ","), mlTopic)
+	defer func() {
+		if err := mlSink.Close(); err != nil {
+			log.Printf("ml sink close error: %v", err)
+		}
+	}()
 	windowDuration := time.Duration(windowSecs) * time.Second
 
 	windowManager := processor.NewWindowManager(windowDuration, func(tenantID, deviceID string, readings []processor.SensorEvent) {
 		features := processor.Compute(readings)
-		if err := mlClient.Send(context.Background(), deviceID, tenantID, features); err != nil {
-			log.Printf("[ml] send error device=%q: %v", deviceID, err)
+		payload := processor.MLRequest{
+			DeviceID: deviceID,
+			TenantID: tenantID,
+			Features: features,
+		}
+		if err := mlSink.Send(context.Background(), payload); err != nil {
+			log.Printf("[ml] enqueue error device=%q: %v", deviceID, err)
 		} else {
-			log.Printf("[ml] sent features device=%q tenant=%q readings=%d", deviceID, tenantID, len(readings))
+			log.Printf("[ml] enqueued features device=%q tenant=%q readings=%d", deviceID, tenantID, len(readings))
 		}
 	})
 
@@ -86,7 +96,7 @@ func main() {
 	})
 	defer reader.Close()
 
-	log.Printf("consuming topic %q from %s (group %q, window %s)", topic, brokers, groupID, windowDuration)
+	log.Printf("consuming topic %q from %s (group %q, window %s), publishing features to %q", topic, brokers, groupID, windowDuration, mlTopic)
 
 	for {
 		msg, err := reader.ReadMessage(ctx)
