@@ -20,7 +20,7 @@ func NewKafkaProducer(brokersCSV, topic string) *KafkaProducer {
 		Topic:        topic,
 		Balancer:     &kafka.LeastBytes{},
 		RequiredAcks: kafka.RequireOne,
-		Async:        false,
+		Async:        true,
 	}
 
 	return &KafkaProducer{

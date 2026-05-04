@@ -16,6 +16,23 @@ type route struct {
 var routes = []route{
 	{http.MethodGet, "/health", health},
 	{http.MethodGet, "/tenants/:tenantID/events", listEvents},
+
+	// Prediction & Review Management
+	{http.MethodGet, "/tenants/:tenantID/predictions/pending", getPendingPredictions},
+	{http.MethodGet, "/tenants/:tenantID/reviews", getReviewedPredictions},
+	{http.MethodGet, "/tenants/:tenantID/reviews/training-eligible-count", countTrainingEligibleReviews},
+
+	// Retraining Configuration & Workflow
+	{http.MethodGet, "/tenants/:tenantID/retraining/config", getRetrainingConfig},
+	{http.MethodPut, "/tenants/:tenantID/retraining/config", updateRetrainingConfig},
+	{http.MethodGet, "/tenants/:tenantID/retraining/:requestID", getRetrainingRequest},
+	{http.MethodPost, "/tenants/:tenantID/retraining/:requestID/approve", approveRetrainingRequest},
+
+	// Model Version Management
+	{http.MethodGet, "/tenants/:tenantID/models/versions", getModelVersions},
+	{http.MethodGet, "/tenants/:tenantID/models/active", getActiveModelVersion},
+	{http.MethodPost, "/tenants/:tenantID/models/:modelID/:version/approve", approveModelVersion},
+	{http.MethodPost, "/tenants/:tenantID/models/:modelID/:version/deploy", deployModelVersion},
 }
 
 func NewRouter(gdb *gorm.DB) *gin.Engine {

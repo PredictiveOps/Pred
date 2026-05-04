@@ -3,7 +3,11 @@
 # used in the topic path so they can only publish to their own topic.
 
 pattern write devices/%c/data
+pattern write devices/%c/registration
+pattern read devices/%c/registration/response
 
 user pred-ingestion
 topic read devices/+/data
+topic read devices/+/registration
+topic write devices/+/registration/response
 topic read $SYS/broker/version

@@ -1,0 +1,117 @@
+_format_version: "3.0"
+
+upstreams:
+  - name: event-processing-upstream
+    targets:
+      - target: event-processing-service:8001
+        weight: 100
+    healthchecks:
+      active:
+        type: http
+        http_path: /health
+        timeout: 3
+        concurrency: 10
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          tcp_failures: 2
+          http_failures: 2
+          timeouts: 2
+
+  - name: ingestion-upstream
+    targets:
+      - target: ingestion-service:8003
+        weight: 100
+    healthchecks:
+      active:
+        type: http
+        http_path: /health
+        timeout: 3
+        concurrency: 10
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          tcp_failures: 2
+          http_failures: 2
+          timeouts: 2
+
+services:
+  - name: event-processing
+    host: event-processing-upstream
+    path: /tenants/default/events
+    routes:
+      - name: events-route
+        paths:
+          - /api/events
+        strip_path: true
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify:
+                - exp
+
+  - name: ingestion
+    host: ingestion-upstream
+    routes:
+      - name: ingestion-route
+        paths:
+          - /api/ingest
+        strip_path: true
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify:
+                - exp
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - "http://localhost:3000"
+        - "http://localhost:8000"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      headers:
+        - Accept
+        - Accept-Version
+        - Content-Length
+        - Content-MD5
+        - Content-Type
+        - Date
+        - Authorization
+      exposed_headers:
+        - Authorization
+      credentials: true
+      max_age: 3600
+
+  - name: rate-limiting
+    config:
+      minute: 600
+      policy: local
+
+  - name: request-size-limiting
+    config:
+      allowed_payload_size: 10
+
+consumers:
+  - username: keycloak-consumer
+
+jwt_secrets:
+  - consumer: keycloak-consumer
+    key: "http://localhost:8080/realms/prod-maintenance"
+    algorithm: RS256
+    # Placeholder — replaced at runtime by the kong-jwks-sync sidecar with the
+    # current Keycloak signing key, then POSTed to Kong's Admin API /config.
+    # This file is NOT loaded by Kong directly; the sidecar is the only reader.
+    rsa_public_key: |
+__RSA_PUBLIC_KEY__
