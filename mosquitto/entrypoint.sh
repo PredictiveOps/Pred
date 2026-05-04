@@ -19,23 +19,6 @@ if [ -z "$DEVICE_USERNAME" ] || [ -z "$DEVICE_PASSWORD" ] || [ -z "$INGESTION_US
   exit 1
 fi
 
-for cert_file in "$CA_FILE" "$CERT_FILE" "$KEY_FILE"; do
-  if [ ! -f "$cert_file" ]; then
-    echo "[mosquitto-config] missing TLS file: $cert_file" >&2
-    echo "[mosquitto-config] add broker certificates under mosquitto/certs before starting MQTTS" >&2
-    exit 1
-  fi
-done
-
-echo "[mosquitto-config] preparing runtime TLS files"
-mkdir -p "$RUNTIME_CERT_DIR"
-cp "$CA_FILE" "$RUNTIME_CA_FILE"
-cp "$CERT_FILE" "$RUNTIME_CERT_FILE"
-cp "$KEY_FILE" "$RUNTIME_KEY_FILE"
-chown mosquitto:mosquitto "$RUNTIME_CA_FILE" "$RUNTIME_CERT_FILE" "$RUNTIME_KEY_FILE"
-chmod 0644 "$RUNTIME_CA_FILE" "$RUNTIME_CERT_FILE"
-chmod 0600 "$RUNTIME_KEY_FILE"
-
 echo "[mosquitto-config] writing password file"
 rm -f "$PASSWORD_FILE"
 mosquitto_passwd -b -c "$PASSWORD_FILE" "$DEVICE_USERNAME" "$DEVICE_PASSWORD"
