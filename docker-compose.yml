@@ -22,11 +22,12 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
@@ -82,6 +83,79 @@ services:
     volumes:
       - ./keycloak/entrypoint.sh:/opt/keycloak-config/entrypoint.sh:ro
       - ./keycloak/configure.sh:/opt/keycloak-config/configure.sh:ro
+
+  ingestion-service:
+    build:
+      context: ./ingestion-service
+    environment:
+      - PORT=8003
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/ingestion
+      - KAFKA_BROKERS=kafka:29092
+      - MQTT_BROKER=tcp://mosquitto:1883
+      - MQTT_CLIENT_ID=ingestion-service
+      - MQTT_USERNAME=${MQTT_INGESTION_USERNAME:-pred-ingestion}
+      - MQTT_PASSWORD=${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
+      - MQTT_TOPIC=sensors/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  event-processing-service:
+    build:
+      context: ./event-processing-service
+    environment:
+      - HTTP_PORT=8001
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/events
+      - KAFKA_BROKERS=kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  notifications-service:
+    build:
+      context: ./notifications-service
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/notifications
+      - KAFKA_BROKERS=kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  kong:
+    image: kong:3.4.1
+    environment:
+      - KONG_DATABASE=off
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+    ports:
+      - "8000:8000"
+      - "8002:8001"
+    depends_on:
+      - ingestion-service
+      - event-processing-service
+      - keycloak
+
+  kong-jwks-sync:
+    build:
+      context: ./kong/jwks-sync
+    environment:
+      - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/prod-maintenance/protocol/openid-connect/certs
+      - KONG_ADMIN_URL=http://kong:8001
+      - POLL_INTERVAL=300
+    volumes:
+      - ./kong/kong.yml:/etc/kong/kong.yml:ro
+    depends_on:
+      - kong
+      - keycloak
 
 volumes:
   postgres_data:

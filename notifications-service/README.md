@@ -27,6 +27,12 @@ Every notification is scoped to a tenant. Tenant context is carried in the Kafka
 | `KAFKA_TOPIC`    | `notifications`                             | Topic the consumer subscribes to                                            |
 | `KAFKA_GROUP_ID` | `notifications-service`                     | Consumer group ID — instances sharing this ID split partitions between them |
 | `DATABASE_URL`   | `postgres://localhost:5432/notifications`   | PostgreSQL connection string                                                |
+| `FAILURE_THRESHOLD` | `0.8`                                   | Skip alerts whose `failure_probability` is below this value                 |
+| `EMAIL_PROVIDER` | `stub`                                      | `stub` logs email sends; `smtp` sends real email                            |
+| `SMTP_HOST`      | `smtp.gmail.com`                            | SMTP host (used when `EMAIL_PROVIDER=smtp`)                                 |
+| `SMTP_PORT`      | `587`                                       | SMTP port (used when `EMAIL_PROVIDER=smtp`)                                 |
+| `EMAIL_USER`     | _(empty)_                                   | SMTP sender account / from address                                          |
+| `EMAIL_PASS`     | _(empty)_                                   | SMTP password / app password                                                |
 
 ## Running
 

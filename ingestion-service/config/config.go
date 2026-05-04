@@ -13,7 +13,7 @@ var Port, DatabaseURL, KafkaBrokers, KafkaTopic, MQTTBroker, MQTTClientID, MQTTT
 func LoadConfig() {
 	err := godotenv.Load(".env")
 	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+		log.Printf("Notice: No .env file found, relying on environment variables.")
 	}
 
 	Port = os.Getenv("PORT")

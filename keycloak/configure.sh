@@ -99,7 +99,7 @@ if [ -z "${CLIENT_UUID:-}" ]; then
     -s standardFlowEnabled=true \
     -s implicitFlowEnabled=false \
     -s directAccessGrantsEnabled=false \
-    -s serviceAccountsEnabled=false \
+    -s serviceAccountsEnabled=true \
     -s authorizationServicesEnabled=false \
     -s frontchannelLogout=true \
     -s "redirectUris=[\"${KC_REDIRECT_URI}\"]" \
@@ -116,7 +116,7 @@ fi
   -s standardFlowEnabled=true \
   -s implicitFlowEnabled=false \
   -s directAccessGrantsEnabled=false \
-  -s serviceAccountsEnabled=false \
+  -s serviceAccountsEnabled=true \
   -s frontchannelLogout=true \
   -s "secret=${KC_CLIENT_SECRET}" \
   -s "redirectUris=[\"${KC_REDIRECT_URI}\"]" \

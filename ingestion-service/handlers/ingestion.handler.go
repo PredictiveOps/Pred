@@ -6,13 +6,15 @@ import (
 	"strings"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-
-	"ingestion-service/services"
 )
 
-var kafkaProducer *services.KafkaProducer
+type KafkaPublisher interface {
+	Publish(ctx context.Context, key string, payload []byte) error
+}
 
-func SetKafkaProducer(producer *services.KafkaProducer) {
+var kafkaProducer KafkaPublisher
+
+func SetKafkaProducer(producer KafkaPublisher) {
 	kafkaProducer = producer
 }
 
