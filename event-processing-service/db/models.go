@@ -54,7 +54,7 @@ type PredictionReview struct {
 	ReviewedLabel     string     `gorm:"not null"` // corrected label by user (normal, warning, critical)
 	ReviewedBy        string     `gorm:"not null"` // user ID
 	ReviewComment     string
-	IsTrainingEligible bool      `gorm:"not null;default:true"`
+	IsTrainingEligible *bool     `gorm:"not null;default:true"` // pointer so GORM stores false explicitly
 	ReviewedAt        time.Time  `gorm:"not null;default:now()"`
 	CreatedAt         time.Time  `gorm:"not null;default:now()"`
 }
