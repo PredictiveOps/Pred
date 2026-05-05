@@ -43,7 +43,7 @@ else
   "$KCADM" create realms \
     -s "realm=${KC_REALM}" \
     -s enabled=true \
-    -s sslRequired=external \
+    -s sslRequired=none \
     -s registrationAllowed=false \
     -s loginWithEmailAllowed=true \
     -s duplicateEmailsAllowed=false \

@@ -20,10 +20,16 @@ export const authOptions: NextAuthOptions = {
 			id: "keycloak",
 			name: "Keycloak",
 			type: "oauth",
-			wellKnown: `${process.env.KEYCLOAK_URL}/realms/${process.env.KEYCLOAK_REALM}/.well-known/openid-configuration`,
+			issuer: `http://localhost:8080/realms/${process.env.KEYCLOAK_REALM}`,
 			clientId: process.env.KEYCLOAK_CLIENT_ID || "",
 			clientSecret: process.env.KEYCLOAK_CLIENT_SECRET || "",
-			authorization: { params: { scope: "openid profile email" } },
+			authorization: {
+				url: `http://localhost:8080/realms/${process.env.KEYCLOAK_REALM}/protocol/openid-connect/auth`,
+				params: { scope: "openid profile email" },
+			},
+			token: `${process.env.KEYCLOAK_URL}/realms/${process.env.KEYCLOAK_REALM}/protocol/openid-connect/token`,
+			userinfo: `${process.env.KEYCLOAK_URL}/realms/${process.env.KEYCLOAK_REALM}/protocol/openid-connect/userinfo`,
+			jwks_endpoint: `${process.env.KEYCLOAK_URL}/realms/${process.env.KEYCLOAK_REALM}/protocol/openid-connect/certs`,
 			profile(profile: any) {
 				return {
 					id: profile.sub || profile.user_id || profile.id,
@@ -43,7 +49,7 @@ export const authOptions: NextAuthOptions = {
 			name: "next-auth.state",
 			options: {
 				httpOnly: true,
-				secure: process.env.NODE_ENV === "production",
+				secure: process.env.NODE_ENV === "production" && process.env.NEXTAUTH_URL?.startsWith("https://"),
 				sameSite: "lax",
 				path: "/",
 				maxAge: 24 * 60 * 60,
@@ -53,7 +59,7 @@ export const authOptions: NextAuthOptions = {
 			name: "next-auth.pkce.code_verifier",
 			options: {
 				httpOnly: true,
-				secure: process.env.NODE_ENV === "production",
+				secure: process.env.NODE_ENV === "production" && process.env.NEXTAUTH_URL?.startsWith("https://"),
 				sameSite: "lax",
 				path: "/",
 				maxAge: 24 * 60 * 60,

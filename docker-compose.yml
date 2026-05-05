@@ -199,9 +199,30 @@ services:
       - kong
       - keycloak
 
+  web-frontend:
+    build:
+      context: ./web-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-changethis-to-a-secure-secret-in-production}
+      - KEYCLOAK_URL=${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM:-prod-maintenance}
+      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-web-frontend}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
+      - NEXT_PUBLIC_API_GATEWAY_URL=${NEXT_PUBLIC_API_GATEWAY_URL:-http://localhost:8000}
+
+    depends_on:
+      - kong
+      - keycloak
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   mosquitto_data:
   mosquitto_log:
   prometheus_data:
   redis_data:
+

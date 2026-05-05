@@ -1,6 +1,25 @@
 _format_version: "3.0"
 
 upstreams:
+  - name: web-frontend-upstream
+    targets:
+      - target: web-frontend:3000
+        weight: 100
+    healthchecks:
+      active:
+        type: http
+        http_path: /
+        timeout: 3
+        concurrency: 10
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          tcp_failures: 2
+          http_failures: 2
+          timeouts: 2
+
   - name: event-processing-upstream
     targets:
       - target: event-processing-service:8001
@@ -40,6 +59,14 @@ upstreams:
           timeouts: 2
 
 services:
+  - name: web-frontend
+    host: web-frontend-upstream
+    routes:
+      - name: web-frontend-route
+        paths:
+          - /
+        strip_path: false
+
   - name: event-processing
     host: event-processing-upstream
     path: /tenants/default/events
