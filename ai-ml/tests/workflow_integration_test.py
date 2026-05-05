@@ -4,8 +4,18 @@ Demonstrates the complete human-in-the-loop workflow.
 """
 
 from datetime import datetime, timezone
+from pathlib import Path
+import sys
 
+import pandas as pd
 import requests
+
+# Add src/ to path so we can import src modules
+SRC_PATH = Path(__file__).resolve().parent.parent / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.insert(0, str(SRC_PATH))
+
+from prediction_module import BearingAnomalyPredictor
 
 # Configuration
 API_BASE = "http://localhost:8000"
@@ -17,30 +27,47 @@ ASSET_ID = "bearing_motor_001"
 ENGINEER_1 = "maintenance_engineer_01"
 ADMIN_1 = "admin_user_01"
 
-# Sample features
-SAMPLE_FEATURES = {
-    "rms": 2.5,
-    "kurtosis": 3.8,
-    "crest_factor": 4.2,
-    "spectral_energy": 156.7,
-    "temperature": 45.3,
-}
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-NORMAL_FEATURES = {
-    "rms": 1.2,
-    "kurtosis": 2.1,
-    "crest_factor": 2.8,
-    "spectral_energy": 95.2,
-    "temperature": 38.5,
-}
 
-CRITICAL_FEATURES = {
-    "rms": 5.8,
-    "kurtosis": 6.2,
-    "crest_factor": 8.5,
-    "spectral_energy": 298.3,
-    "temperature": 62.1,
-}
+def resolve_sample_data_path(project_root: Path) -> Path:
+    candidates = [
+        project_root / "data" / "processed" / "bearing_features_labeled.csv",
+        project_root / "results" / "processed" / "bearing_features_labeled.csv",
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError(
+        "Could not find sample CSV. Checked: "
+        + ", ".join(str(path) for path in candidates)
+    )
+
+
+PREDICTOR = BearingAnomalyPredictor(
+    model_path=PROJECT_ROOT / "artifacts" / "models" / "vibration_isolation_forest.pkl",
+    feature_columns_path=PROJECT_ROOT / "artifacts" / "models" / "feature_columns.json",
+    thresholds_path=PROJECT_ROOT / "artifacts" / "models" / "anomaly_thresholds.json",
+    model_name="vibration_isolation_forest",
+    model_version="v1",
+)
+
+
+def load_sample_features() -> dict:
+    sample_csv = resolve_sample_data_path(PROJECT_ROOT)
+    sample_df = pd.read_csv(sample_csv, nrows=1)
+
+    return {
+        column: sample_df.iloc[0][column].item()
+        if hasattr(sample_df.iloc[0][column], "item")
+        else sample_df.iloc[0][column]
+        for column in PREDICTOR.artifacts.feature_columns
+    }
+
+
+SAMPLE_FEATURES = load_sample_features()
 
 
 def test_health_check():
