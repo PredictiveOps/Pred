@@ -1,12 +1,11 @@
 package router
 
 import (
+	"ingestion-service/handlers"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-
-	"ingestion-service/handlers"
 )
 
 type route struct {
@@ -22,6 +21,7 @@ var routes = []route{
 	{http.MethodGet, "/tenants/:tenant_id/devices", handlers.GetDevicesByTenantIDHandler},
 	{http.MethodPut, "/devices/:device_id/status", handlers.UpdateDeviceActiveStatusHandler},
 	{http.MethodDelete, "/devices/:device_id", handlers.DeleteDeviceHandler},
+	{http.MethodGet, "/metrics", handlers.PrometheusHandler},
 }
 
 func NewRouter(gdb *gorm.DB) *gin.Engine {

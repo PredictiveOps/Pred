@@ -86,6 +86,7 @@ services:
       KC_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
       KC_REDIRECT_URI: ${KEYCLOAK_REDIRECT_URI:-http://localhost:3000/api/auth/callback/keycloak}
       KC_WEB_ORIGIN: ${KEYCLOAK_WEB_ORIGIN:-http://localhost:3000}
+      KC_METRICS_ENABLED: "true"
       TEST_USER_PASSWORD: ${KEYCLOAK_TEST_USER_PASSWORD:-Test123!}
     ports:
       - "8080:8080"
@@ -104,16 +105,44 @@ services:
       - PORT=8003
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/ingestion
       - KAFKA_BROKERS=kafka:29092
-      - MQTT_BROKER=tcp://mosquitto:1883
+      - KAFKA_TOPIC=sensor_data
+      - MQTT_BROKER=tcp://mosquitto:8883
       - MQTT_CLIENT_ID=ingestion-service
       - MQTT_USERNAME=${MQTT_INGESTION_USERNAME:-pred-ingestion}
       - MQTT_PASSWORD=${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
-      - MQTT_TOPIC=sensors/data
+      - MQTT_TOPIC=devices/+/data
+      - MQTT_DEVICE_REGISTRATION_TOPIC=devices/+/registration
+      - MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC=devices/%d/registration/response
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - REDIS_PUBKEY_TTL=30m
+      - REDIS_NONCE_TTL=60s
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
         condition: service_started
+      mosquitto:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.11.3
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
 
   event-processing-service:
     build:
@@ -174,4 +203,5 @@ volumes:
   postgres_data:
   mosquitto_data:
   mosquitto_log:
+  prometheus_data:
   redis_data:
