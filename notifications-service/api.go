@@ -9,15 +9,9 @@ import (
 
 	"github.com/gorilla/websocket"
 	"gorm.io/gorm"
-)
 
-type NotificationResponse struct {
-	ID        int64           `json:"id"`
-	TenantID  string          `json:"tenant_id"`
-	Type      string          `json:"type"`
-	Payload   json.RawMessage `json:"payload"`
-	CreatedAt time.Time       `json:"created_at"`
-}
+	"notifications-service/db"
+)
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -60,16 +54,7 @@ func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 			limit = 100
 		}
 
-		var notifs []NotificationResponse
-
-		err := gdb.Raw(`
-			SELECT id, tenant_id, type, payload, created_at
-			FROM notifications
-			WHERE tenant_id = ?
-			ORDER BY created_at DESC
-			LIMIT ?
-		`, tenantID, limit).Scan(&notifs).Error
-
+		notifs, err := db.GetNotifications(r.Context(), gdb, tenantID, limit)
 		if err != nil {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
