@@ -1,0 +1,35 @@
+Basic Bearing Predictive Maintenance Model Evaluation
+===============================================
+
+Extraction Summary:
+- number_of_files_discovered: 129
+- number_of_files_selected: 129
+- number_of_files_processed: 129
+- number_of_skipped_files: 0
+- total_extracted_windows: 125775
+- vibration_x_detected: True
+- vibration_y_detected: True
+- temperature_bearing_detected: True
+- temperature_atmospheric_detected: True
+- final_feature_column_count: 51
+
+Final model feature column count: 51
+
+Classification Report:
+              precision    recall  f1-score   support
+
+      normal     0.8644    0.8644    0.8644     75465
+     warning     0.5564    0.5564    0.5564     31443
+    critical     0.5950    0.5950    0.5950     18867
+
+    accuracy                         0.7470    125775
+   macro avg     0.6719    0.6719    0.6719    125775
+weighted avg     0.7470    0.7470    0.7470    125775
+
+Accuracy: 0.746985
+
+Confusion Matrix (rows=true, cols=pred):
+          normal  warning  critical
+normal     65231     7912      2322
+warning     8627    17496      5320
+critical    1607     6035     11225

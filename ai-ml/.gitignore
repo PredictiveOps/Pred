@@ -1,0 +1,27 @@
+.env# Environment variables
+.env
+.env.local
+.env.*.local
+mosquitto/passwords
+mosquitto/certs/*
+!mosquitto/certs/.gitkeep
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+.next/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+/dataset
+/results/processed
+__pycache__/
+.venv/
