@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gorm.io/gorm"
 )
 
@@ -29,6 +30,7 @@ var upgrader = websocket.Upgrader{
 
 func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/notifications", func(w http.ResponseWriter, r *http.Request) {
 		addCORSHeaders(w)
 		if r.Method == http.MethodOptions {
