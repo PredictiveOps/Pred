@@ -361,6 +361,59 @@ func TestNormalizeKafkaMessage(t *testing.T) {
 	}
 }
 
+func TestHandleMessage_BroadcastsToCorrectTenant(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+
+	hub := NewHub()
+	target := newTestClient("ws-tenant-A", 4)
+	target.hub = hub
+	other := newTestClient("ws-tenant-B", 4)
+	other.hub = hub
+	hub.Register("ws-tenant-A", target)
+	hub.Register("ws-tenant-B", other)
+	t.Cleanup(func() {
+		hub.Unregister("ws-tenant-A", target)
+		hub.Unregister("ws-tenant-B", other)
+	})
+
+	tenantID := "ws-tenant-A"
+	t.Cleanup(func() {
+		var notifIDs []uint
+		gdb.Model(&db.Notification{}).Where("tenant_id = ?", tenantID).Pluck("id", &notifIDs)
+		if len(notifIDs) > 0 {
+			gdb.Where("notification_id IN ?", notifIDs).Delete(&db.NotificationDelivery{})
+		}
+		gdb.Where("tenant_id = ?", tenantID).Delete(&db.Notification{})
+	})
+
+	event := AlertEvent{
+		TenantID:   tenantID,
+		Type:       "email",
+		Payload:    json.RawMessage(`{"subject":"Alert"}`),
+		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
+	}
+	if err := handleMessage(ctx, gdb, hub, makeMessage(t, event)); err != nil {
+		t.Fatalf("handleMessage: %v", err)
+	}
+
+	select {
+	case msg := <-target.send:
+		if len(msg) == 0 {
+			t.Error("broadcast message to target tenant should not be empty")
+		}
+	default:
+		t.Error("expected broadcast to ws-tenant-A client, got nothing")
+	}
+
+	select {
+	case msg := <-other.send:
+		t.Errorf("ws-tenant-B should not receive ws-tenant-A broadcast, got %q", msg)
+	default:
+		// expected
+	}
+}
+
 func TestFailureThreshold(t *testing.T) {
 	cases := []struct {
 		env  string
