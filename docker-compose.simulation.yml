@@ -1,0 +1,14 @@
+services:
+  device-simulator:
+    build:
+      context: ./device-simulation
+    environment:
+      - INGESTION_HTTP_URL=http://ingestion-service:8003
+      - MQTT_BROKER_HOST=mosquitto
+      - MQTT_BROKER_PORT=1883
+      - MQTT_DEVICE_USERNAME=${MQTT_DEVICE_USERNAME:-pred-device}
+      - MQTT_DEVICE_PASSWORD=${MQTT_DEVICE_PASSWORD:-dev-device-password}
+      - TENANT_ID=1
+      - SEND_INTERVAL_MIN=5
+      - SEND_INTERVAL_MAX=30
+    restart: unless-stopped

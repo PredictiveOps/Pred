@@ -84,6 +84,14 @@ make test
 make test-down
 ```
 
+### System Simulation
+
+To simulate the whole system (for testing or demoing purposes), run:
+
+```sh
+docker compose -f docker-compose.simulation.yml -p pred-simulation up
+```
+
 ## Services
 
 All services must have a `.env.example` file with the required and optional environment variables with their default values.
