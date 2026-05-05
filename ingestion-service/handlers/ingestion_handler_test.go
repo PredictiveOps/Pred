@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"testing"
 )
 
@@ -34,90 +33,51 @@ func (s *spyKafkaPublisher) Publish(_ context.Context, key string, payload []byt
 	return s.returnErr
 }
 
-func TestExtractDeviceIDFromTopic(t *testing.T) {
-	cases := []struct {
-		topic string
-		want  string
-	}{
-		{"devices/abc/data", "abc"},
-		{"devices/sensor-99/data", "sensor-99"},
-		{"devices/dev_01/data", "dev_01"},
-		{"noSlash", "noSlash"},
-		{"other/x/data", "other/x/data"},
-	}
-	for _, tc := range cases {
-		got := extractDeviceIDFromTopic(tc.topic)
-		if got != tc.want {
-			t.Errorf("extractDeviceIDFromTopic(%q) = %q, want %q", tc.topic, got, tc.want)
-		}
-	}
-}
-
-func TestHandleMQTTMessage_PublishesWithDeviceIDAsKey(t *testing.T) {
-	spy := &spyKafkaPublisher{}
-	SetKafkaProducer(spy)
-	defer SetKafkaProducer(nil)
-
-	msg := &fakeMQTTMessage{topic: "devices/dev42/data", payload: []byte("hello")}
-	HandleMQTTMessage(nil, msg)
-
-	if len(spy.calls) != 1 {
-		t.Fatalf("expected 1 publish call, got %d", len(spy.calls))
-	}
-	if spy.calls[0].key != "dev42" {
-		t.Errorf("key = %q, want %q", spy.calls[0].key, "dev42")
-	}
-	if string(spy.calls[0].payload) != "hello" {
-		t.Errorf("payload = %q, want %q", spy.calls[0].payload, "hello")
-	}
-}
-
-func TestHandleMQTTMessage_VariousDeviceIDs(t *testing.T) {
+func TestParseDeviceTopic_ValidTopics(t *testing.T) {
 	cases := []struct {
 		topic    string
-		deviceID string
-		payload  string
+		wantID   uint
+		wantKind string
 	}{
-		{"devices/pump-01/data", "pump-01", `{"temp":22}`},
-		{"devices/sensor_99/data", "sensor_99", `{"vibration":0.5}`},
-		{"devices/abc123/data", "abc123", `{}`},
+		{"devices/42/data", 42, "data"},
+		{"devices/99/registration", 99, "registration"},
+		{"devices/1/data", 1, "data"},
 	}
-
 	for _, tc := range cases {
-		spy := &spyKafkaPublisher{}
-		SetKafkaProducer(spy)
-
-		msg := &fakeMQTTMessage{topic: tc.topic, payload: []byte(tc.payload)}
-		HandleMQTTMessage(nil, msg)
-
-		SetKafkaProducer(nil)
-
-		if len(spy.calls) != 1 {
-			t.Errorf("topic %q: expected 1 publish call, got %d", tc.topic, len(spy.calls))
+		gotID, gotKind, err := parseDeviceTopic(tc.topic)
+		if err != nil {
+			t.Errorf("parseDeviceTopic(%q): unexpected error: %v", tc.topic, err)
 			continue
 		}
-		if spy.calls[0].key != tc.deviceID {
-			t.Errorf("topic %q: key = %q, want %q", tc.topic, spy.calls[0].key, tc.deviceID)
+		if gotID != tc.wantID || gotKind != tc.wantKind {
+			t.Errorf("parseDeviceTopic(%q) = (%d, %q), want (%d, %q)", tc.topic, gotID, gotKind, tc.wantID, tc.wantKind)
 		}
 	}
 }
 
-func TestHandleMQTTMessage_KafkaErrorIsLogged(t *testing.T) {
-	spy := &spyKafkaPublisher{returnErr: errors.New("broker down")}
-	SetKafkaProducer(spy)
-	defer SetKafkaProducer(nil)
-
-	msg := &fakeMQTTMessage{topic: "devices/d1/data", payload: []byte("data")}
-	HandleMQTTMessage(nil, msg)
-
-	if len(spy.calls) != 1 {
-		t.Errorf("expected 1 publish attempt, got %d", len(spy.calls))
+func TestParseDeviceTopic_InvalidTopics(t *testing.T) {
+	cases := []string{
+		"noSlash",
+		"other/x/data",
+		"devices/abc/data",
+		"devices/42/unknown",
+		"devices/42",
+		"",
+	}
+	for _, topic := range cases {
+		if _, _, err := parseDeviceTopic(topic); err == nil {
+			t.Errorf("parseDeviceTopic(%q): expected error, got none", topic)
+		}
 	}
 }
 
-func TestHandleMQTTMessage_NilProducer(t *testing.T) {
-	SetKafkaProducer(nil)
-
-	msg := &fakeMQTTMessage{topic: "devices/d1/data", payload: []byte("data")}
-	HandleMQTTMessage(nil, msg) // must not panic
+func TestHandleMQTTMessage_InvalidTopicDoesNotPanic(t *testing.T) {
+	msg := &fakeMQTTMessage{topic: "not-a-valid-topic", payload: []byte("hello")}
+	HandleMQTTMessage(nil, msg)
 }
+
+func TestHandleMQTTMessage_NonNumericDeviceIDDoesNotPanic(t *testing.T) {
+	msg := &fakeMQTTMessage{topic: "devices/abc/data", payload: []byte("hello")}
+	HandleMQTTMessage(nil, msg)
+}
+

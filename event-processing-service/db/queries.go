@@ -3,7 +3,7 @@ package db
 import (
 	"context"
 
-	"gorm.io/clause"
+	"gorm.io/gorm/clause"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )

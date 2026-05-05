@@ -79,6 +79,48 @@ match the ingestion credentials.
 
 ## Test with mosquitto clients
 
+## Generate dev certificates (for local testing)
+
+Run these from the repo root; they create a CA (used only to sign the server cert) and a server certificate under `./mosquitto/certs`.
+
+```sh
+# create cert dir and cd into it
+mkdir -p ./mosquitto/certs && cd ./mosquitto/certs
+
+# Create a local CA (you can archive/remove ca.key after signing)
+openssl genpkey -algorithm RSA -out ca.key -pkeyopt rsa_keygen_bits:4096
+openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 -out ca.crt -subj "/CN=Pred Local CA"
+
+# Create server key and CSR
+openssl genpkey -algorithm RSA -out server.key -pkeyopt rsa_keygen_bits:2048
+openssl req -new -key server.key -out server.csr -subj "/CN=localhost"
+
+# Create SAN extfile and sign the server CSR with the CA
+cat > server.ext <<'EOF'
+[req]
+distinguished_name = req_distinguished_name
+req_extensions = req_ext
+prompt = no
+
+[req_distinguished_name]
+CN = localhost
+
+[req_ext]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+IP.1 = 127.0.0.1
+EOF
+
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out server.crt -days 825 -sha256 -extfile server.ext
+
+chmod 600 server.key
+chmod 644 server.crt ca.crt
+```
+
+
 Subscribe as the ingestion service:
 
 ```sh
@@ -107,3 +149,13 @@ docker compose exec mosquitto mosquitto_pub \
 - [ ] Review ACLs before adding new MQTT topics
 - [ ] Install production broker TLS certificates under `mosquitto/certs`
 - [ ] Store production secrets in a secret manager, not committed files
+- [ ] **Disable `InsecureSkipVerify` in ingestion service** (set to `false` in `services/MQTT.service.go`)
+- [ ] Generate certificates with proper SANs covering all broker hostnames/IPs
+
+**⚠️ IMPORTANT - TLS Certificate Verification:**
+The current ingestion service configuration uses `InsecureSkipVerify: true` which disables TLS certificate validation. This is acceptable for local development but **must be disabled in production**.
+
+Before deploying to production:
+1. Generate proper TLS certificates with SANs covering your broker's hostname(s)
+2. Set `InsecureSkipVerify: false` in `ingestion-service/services/MQTT.service.go`
+3. Configure all clients to verify the broker's certificate against a trusted CA

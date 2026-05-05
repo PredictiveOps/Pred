@@ -23,6 +23,7 @@ func CreateMQTTClient(broker, clientID, username, password, caCertPath string) (
 	opts.SetConnectRetryInterval(2 * time.Second)
 	opts.SetKeepAlive(30 * time.Second)
 	opts.SetPingTimeout(10 * time.Second)
+	opts.SetCleanSession(false)
 	opts.SetOnConnectHandler(func(_ mqtt.Client) {
 		fmt.Printf("Connected to MQTT broker at %s\n", broker)
 	})
@@ -65,7 +66,8 @@ func createTLSConfig(caCertPath string) (*tls.Config, error) {
 		}
 	}
 
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+	// TODO: Remove InsecureSkipVerify or set to false in production
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true}
 	if certPool != nil {
 		tlsConfig.RootCAs = certPool
 	}

@@ -37,49 +37,44 @@ func openTestDB(t *testing.T) *gorm.DB {
 	return gdb
 }
 
-func newTestRouter() *gin.Engine {
+func newTestRouter(gdb *gorm.DB) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.POST("/devices", handlers.RegisterDevice)
-	r.GET("/devices", handlers.GetDevices)
-	r.GET("/devices/:id", handlers.GetDeviceByID)
+	r.POST("/devices/register", handlers.RegisterDeviceHTTP(gdb))
+	r.GET("/tenants/:tenant_id/devices", handlers.GetDevicesByTenantIDHandler(gdb))
+	r.GET("/devices/:device_id", handlers.GetDeviceByIDHandler(gdb))
 	return r
 }
 
 func TestRegisterDevice_Success(t *testing.T) {
 	gdb := openTestDB(t)
-	t.Cleanup(func() { gdb.Delete(&db.Device{}, "tenant_id = ?", 7001) })
+	t.Cleanup(func() { gdb.Delete(&db.Device{}, "device_id = ?", 70001) })
 
-	body := `{"name":"Pump A","tenant_id":7001,"is_active":true}`
+	body := `{"device_id":70001,"tenant_id":7001}`
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/devices", bytes.NewBufferString(body))
+	req, _ := http.NewRequest(http.MethodPost, "/devices/register", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	newTestRouter().ServeHTTP(w, req)
+	newTestRouter(gdb).ServeHTTP(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusCreated, w.Body.String())
 	}
 
-	var resp db.Device
+	var resp db.DeviceRegistrationResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("response not valid JSON: %v", err)
 	}
-	if resp.ID == 0 {
-		t.Error("expected non-zero ID")
-	}
-	if resp.Name != "Pump A" {
-		t.Errorf("name = %q, want %q", resp.Name, "Pump A")
+	if resp.RegistrationStatus != "ok" {
+		t.Errorf("registration_status = %q, want %q", resp.RegistrationStatus, "ok")
 	}
 }
 
-func TestRegisterDevice_MissingName(t *testing.T) {
-	openTestDB(t)
-
+func TestRegisterDevice_MissingDeviceID(t *testing.T) {
 	body := `{"tenant_id":7002}`
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/devices", bytes.NewBufferString(body))
+	req, _ := http.NewRequest(http.MethodPost, "/devices/register", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	newTestRouter().ServeHTTP(w, req)
+	newTestRouter(nil).ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -87,13 +82,11 @@ func TestRegisterDevice_MissingName(t *testing.T) {
 }
 
 func TestRegisterDevice_MissingTenantID(t *testing.T) {
-	openTestDB(t)
-
-	body := `{"name":"X"}`
+	body := `{"device_id":1}`
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/devices", bytes.NewBufferString(body))
+	req, _ := http.NewRequest(http.MethodPost, "/devices/register", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	newTestRouter().ServeHTTP(w, req)
+	newTestRouter(nil).ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -101,12 +94,10 @@ func TestRegisterDevice_MissingTenantID(t *testing.T) {
 }
 
 func TestRegisterDevice_InvalidJSON(t *testing.T) {
-	openTestDB(t)
-
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/devices", bytes.NewBufferString("not-json"))
+	req, _ := http.NewRequest(http.MethodPost, "/devices/register", bytes.NewBufferString("not-json"))
 	req.Header.Set("Content-Type", "application/json")
-	newTestRouter().ServeHTTP(w, req)
+	newTestRouter(nil).ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -120,9 +111,9 @@ func TestGetDevices_ReturnsTenantDevices(t *testing.T) {
 	})
 
 	for _, d := range []db.Device{
-		{Name: "D1", TenantID: 7003},
-		{Name: "D2", TenantID: 7003},
-		{Name: "D3", TenantID: 7004},
+		{DeviceID: 70031, TenantID: 7003},
+		{DeviceID: 70032, TenantID: 7003},
+		{DeviceID: 70041, TenantID: 7004},
 	} {
 		if err := gdb.Create(&d).Error; err != nil {
 			t.Fatalf("seed: %v", err)
@@ -130,14 +121,14 @@ func TestGetDevices_ReturnsTenantDevices(t *testing.T) {
 	}
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/devices?tenant_id=7003", nil)
-	newTestRouter().ServeHTTP(w, req)
+	req, _ := http.NewRequest(http.MethodGet, "/tenants/7003/devices", nil)
+	newTestRouter(gdb).ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
 	}
 
-	var devices []db.Device
+	var devices []db.DeviceDetails
 	if err := json.Unmarshal(w.Body.Bytes(), &devices); err != nil {
 		t.Fatalf("response not valid JSON: %v", err)
 	}
@@ -151,24 +142,10 @@ func TestGetDevices_ReturnsTenantDevices(t *testing.T) {
 	}
 }
 
-func TestGetDevices_MissingTenantID(t *testing.T) {
-	openTestDB(t)
-
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/devices", nil)
-	newTestRouter().ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
-	}
-}
-
 func TestGetDevices_InvalidTenantID(t *testing.T) {
-	openTestDB(t)
-
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/devices?tenant_id=abc", nil)
-	newTestRouter().ServeHTTP(w, req)
+	req, _ := http.NewRequest(http.MethodGet, "/tenants/abc/devices", nil)
+	newTestRouter(nil).ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -178,26 +155,29 @@ func TestGetDevices_InvalidTenantID(t *testing.T) {
 func TestGetDeviceByID_Found(t *testing.T) {
 	gdb := openTestDB(t)
 
-	device := db.Device{Name: "Sensor A", TenantID: 7005}
+	device := db.Device{DeviceID: 70051, TenantID: 7005}
 	if err := gdb.Create(&device).Error; err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	t.Cleanup(func() { gdb.Delete(&db.Device{}, device.ID) })
+	t.Cleanup(func() { gdb.Delete(&db.Device{}, "device_id = ?", device.DeviceID) })
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/devices/%d", device.ID), nil)
-	newTestRouter().ServeHTTP(w, req)
+	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/devices/%d", device.DeviceID), nil)
+	newTestRouter(gdb).ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
 	}
 
-	var resp db.Device
+	var resp db.DeviceDetails
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("response not valid JSON: %v", err)
 	}
-	if resp.Name != "Sensor A" {
-		t.Errorf("name = %q, want %q", resp.Name, "Sensor A")
+	if resp.DeviceID != device.DeviceID {
+		t.Errorf("device_id = %d, want %d", resp.DeviceID, device.DeviceID)
+	}
+	if resp.TenantID != 7005 {
+		t.Errorf("tenant_id = %d, want 7005", resp.TenantID)
 	}
 }
 
@@ -206,7 +186,7 @@ func TestGetDeviceByID_NotFound(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/devices/999999999", nil)
-	newTestRouter().ServeHTTP(w, req)
+	newTestRouter(nil).ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
@@ -214,11 +194,9 @@ func TestGetDeviceByID_NotFound(t *testing.T) {
 }
 
 func TestGetDeviceByID_InvalidID(t *testing.T) {
-	openTestDB(t)
-
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/devices/not-a-number", nil)
-	newTestRouter().ServeHTTP(w, req)
+	newTestRouter(nil).ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
