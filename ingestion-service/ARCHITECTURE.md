@@ -82,7 +82,7 @@ The ingestion service publishes the sensor data to Kafka with device metadata:
 - `KAFKA_BROKERS` — e.g., `localhost:9092`
 - `KAFKA_TOPIC_EVENTS` — default `events`
 - `KAFKA_GROUP_ID` — used when ingestion contains any consumer parts (optional)
-- `MQTT_BROKER_URL` — URL for MQTT broker (e.g., `tcp://mosquitto:1883`)
+- `MQTT_BROKER_URL` — URL for MQTT broker (e.g., `tcp://mosquitto:8883`)
 - `HTTP_BIND_ADDR` — HTTP listen address (e.g., `:2500`)
 - `LOG_LEVEL` — logging verbosity
 - `DATABASE_URL` — only if the ingestion service needs a local DB for dedupe/offsets (not required in current implementation)

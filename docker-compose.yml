@@ -55,14 +55,14 @@ services:
       MQTT_INGESTION_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
       MQTT_INGESTION_PASSWORD: ${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
     ports:
-      - "1883:1883"
+      - "8883:8883"
     volumes:
       - ./mosquitto:/mosquitto/config
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
     entrypoint: ["/bin/sh", "/mosquitto/config/entrypoint.sh"]
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -u \"$${MQTT_INGESTION_USERNAME}\" -P \"$${MQTT_INGESTION_PASSWORD}\" -t '$$SYS/broker/version' -C 1 -W 5 >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/config/certs/ca.crt -u \"$${MQTT_INGESTION_USERNAME}\" -P \"$${MQTT_INGESTION_PASSWORD}\" -t '$$SYS/broker/version' -C 1 -W 5 >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -106,7 +106,7 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/ingestion
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_TOPIC=sensor_data
-      - MQTT_BROKER=tcp://mosquitto:1883
+      - MQTT_BROKER=tcp://mosquitto:8883
       - MQTT_CLIENT_ID=ingestion-service
       - MQTT_USERNAME=${MQTT_INGESTION_USERNAME:-pred-ingestion}
       - MQTT_PASSWORD=${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}

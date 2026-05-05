@@ -242,6 +242,6 @@ func buildRegistrationResponseTopic(requestTopic, template string) string {
 	return fmt.Sprintf("devices/%d/registration/response", deviceID)
 }
 
-func PrometheusHandler(gdb *gorm.DB) gin.HandlerFunc {
+func PrometheusHandler(_ *gorm.DB) gin.HandlerFunc {
 	return gin.WrapH(promhttp.Handler())
 }
