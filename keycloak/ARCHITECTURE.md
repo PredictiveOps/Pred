@@ -1,4 +1,4 @@
-curl http://localhost:8081/health# Keycloak Architecture & Data Flow
+# Keycloak Architecture & Data Flow
 
 Complete technical explanation of how Keycloak works within the Pred system.
 
