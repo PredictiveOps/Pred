@@ -2,10 +2,11 @@ package db
 
 import (
 	"context"
+	"time"
 
-	"gorm.io/gorm/clause"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func InsertEvent(ctx context.Context, gdb *gorm.DB, tenantID string, payload []byte) (int64, error) {
@@ -14,6 +15,27 @@ func InsertEvent(ctx context.Context, gdb *gorm.DB, tenantID string, payload []b
 		return 0, err
 	}
 	return e.ID, nil
+}
+
+func GetUnprocessedEvents(ctx context.Context, gdb *gorm.DB, limit int) ([]Event, error) {
+	var events []Event
+	err := gdb.WithContext(ctx).
+		Where("processed_at IS NULL").
+		Order("id ASC").
+		Limit(limit).
+		Find(&events).Error
+	return events, err
+}
+
+func MarkEventsProcessed(ctx context.Context, gdb *gorm.DB, ids []int64, processedAt time.Time) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	return gdb.WithContext(ctx).
+		Model(&Event{}).
+		Where("id IN ?", ids).
+		Update("processed_at", processedAt).Error
 }
 
 // ProcessedFeatures queries

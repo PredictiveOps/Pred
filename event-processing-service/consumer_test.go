@@ -5,20 +5,12 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/segmentio/kafka-go"
 	"gorm.io/gorm"
 
 	"event-processing-service/db"
-	"event-processing-service/processor"
 )
-
-// noopWindowManager returns a WindowManager whose flush callback does nothing.
-// Used in integration tests that only care about DB insertion, not ML forwarding.
-func noopWindowManager() *processor.WindowManager {
-	return processor.NewWindowManager(5*time.Second, func(_, _ string, _ []processor.SensorEvent) {})
-}
 
 func openTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -51,8 +43,6 @@ func makeMessage(t *testing.T, v any) kafka.Message {
 func TestHandleMessage_InsertsEvent(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()
-	wm := noopWindowManager()
-	defer wm.Stop()
 
 	body := map[string]any{
 		"tenant_id": "t-events",
@@ -65,7 +55,7 @@ func TestHandleMessage_InsertsEvent(t *testing.T) {
 		"status":    "nominal",
 	}
 
-	if err := handleMessage(ctx, gdb, wm, makeMessage(t, body)); err != nil {
+	if err := handleMessage(ctx, gdb, makeMessage(t, body)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -77,16 +67,17 @@ func TestHandleMessage_InsertsEvent(t *testing.T) {
 	if len(event.Payload) == 0 {
 		t.Fatal("payload was empty")
 	}
+	if event.ProcessedAt != nil {
+		t.Fatal("newly stored event should not be marked processed")
+	}
 }
 
 func TestHandleMessage_InvalidJSON(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()
-	wm := noopWindowManager()
-	defer wm.Stop()
 
 	msg := kafka.Message{Value: []byte(`not valid json`)}
-	err := handleMessage(ctx, gdb, wm, msg)
+	err := handleMessage(ctx, gdb, msg)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
 	}
