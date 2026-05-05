@@ -65,11 +65,8 @@ func notificationsHandler(gdb *gorm.DB) http.HandlerFunc {
 	}
 }
 
-func startHTTPServer(gdb *gorm.DB, hub *Hub) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/notifications", notificationsHandler(gdb))
-
-	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+func wsHandler(hub *Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		tenantID := r.URL.Query().Get("tenant_id")
 		if tenantID == "" {
 			http.Error(w, "tenant_id is required", http.StatusBadRequest)
@@ -93,7 +90,13 @@ func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 
 		go client.writePump()
 		go client.readPump()
-	})
+	}
+}
+
+func startHTTPServer(gdb *gorm.DB, hub *Hub) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/notifications", notificationsHandler(gdb))
+	mux.HandleFunc("/ws", wsHandler(hub))
 
 	server := &http.Server{
 		Addr:              ":8080",

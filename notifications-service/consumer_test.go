@@ -214,6 +214,14 @@ func TestHandleMessage_HighFailureProbability(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()
 	t.Setenv("FAILURE_THRESHOLD", "0.8")
+	t.Cleanup(func() {
+		var notifIDs []uint
+		gdb.Model(&db.Notification{}).Where("tenant_id = ?", "t-high-prob").Pluck("id", &notifIDs)
+		if len(notifIDs) > 0 {
+			gdb.Where("notification_id IN ?", notifIDs).Delete(&db.NotificationDelivery{})
+		}
+		gdb.Where("tenant_id = ?", "t-high-prob").Delete(&db.Notification{})
+	})
 
 	event := AlertEvent{
 		TenantID:   "t-high-prob",

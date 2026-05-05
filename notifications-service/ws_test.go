@@ -1,7 +1,13 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 func newTestClient(tenantID string, bufSize int) *Client {
@@ -118,4 +124,48 @@ func TestHub_BroadcastUnknownTenant(t *testing.T) {
 	hub := NewHub()
 	// Should not panic when broadcasting to a tenant with no clients.
 	hub.Broadcast("no-such-tenant", []byte(`{}`))
+}
+
+func TestWSHandler_MissingTenantID(t *testing.T) {
+	hub := NewHub()
+	handler := wsHandler(hub)
+
+	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	w := httptest.NewRecorder()
+	handler(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want %d", w.Code, http.StatusBadRequest)
+	}
+	if !strings.Contains(w.Body.String(), "tenant_id") {
+		t.Errorf("body should mention tenant_id, got: %q", w.Body.String())
+	}
+}
+
+func TestWSHandler_ValidUpgrade(t *testing.T) {
+	hub := NewHub()
+	srv := httptest.NewServer(wsHandler(hub))
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?tenant_id=test-tenant"
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("WebSocket dial failed (status %v): %v", resp, err)
+	}
+	defer conn.Close()
+
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Errorf("expected 101 Switching Protocols, got %d", resp.StatusCode)
+	}
+
+	// Give the server goroutines a moment to call Register.
+	time.Sleep(20 * time.Millisecond)
+
+	hub.mu.RLock()
+	tenantClients := hub.clients["test-tenant"]
+	hub.mu.RUnlock()
+
+	if len(tenantClients) != 1 {
+		t.Errorf("hub should have 1 client for test-tenant, got %d", len(tenantClients))
+	}
 }
