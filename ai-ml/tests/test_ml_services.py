@@ -8,7 +8,9 @@ No external dependencies (PostgreSQL, Docker) required.
 
 Usage:
     cd ai-ml
-    python test_ml_services.py
+    python -m pytest tests/
+    or
+    python tests/test_ml_services.py
 """
 
 from __future__ import annotations
@@ -23,7 +25,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 # ── Setup ────────────────────────────────────────────────────────────────────
-PROJECT_ROOT = Path(__file__).resolve().parent
+# Add src/ to path so we can import src modules
+SRC_PATH = Path(__file__).resolve().parent.parent / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.insert(0, str(SRC_PATH))
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # In-memory SQLite for isolated testing
 ENGINE = create_engine("sqlite:///:memory:", echo=False)

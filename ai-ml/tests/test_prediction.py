@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pandas as pd
 
+# Add src/ to path so we can import src modules
+SRC_PATH = Path(__file__).resolve().parent.parent / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.insert(0, str(SRC_PATH))
+
 from prediction_module import BearingAnomalyPredictor
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def resolve_sample_data_path(project_root: Path) -> Path:
@@ -25,7 +33,7 @@ def resolve_sample_data_path(project_root: Path) -> Path:
 
 
 def main() -> None:
-    project_root = Path(__file__).resolve().parent
+    project_root = Path(__file__).resolve().parent.parent
 
     predictor = BearingAnomalyPredictor(
         model_path=project_root / "artifacts" / "models" / "vibration_isolation_forest.pkl",

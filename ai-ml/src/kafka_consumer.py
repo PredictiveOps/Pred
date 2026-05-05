@@ -10,7 +10,7 @@ from kafka import KafkaConsumer
 
 from prediction_module import BearingAnomalyPredictor
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = PROJECT_ROOT / "artifacts" / "models"
 
 PREDICTOR = BearingAnomalyPredictor(

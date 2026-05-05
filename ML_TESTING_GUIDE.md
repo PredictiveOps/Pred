@@ -601,7 +601,7 @@ Run the integration test:
 
 ```bash
 cd ai-ml
-python workflow_integration_test.py
+python tests/workflow_integration_test.py
 ```
 
 **Expected Output:**

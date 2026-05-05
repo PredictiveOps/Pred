@@ -147,7 +147,7 @@ All documented at: `http://localhost:8000/docs` (Swagger UI)
 curl http://localhost:8000/health
 
 # 2. Run integration test
-cd ai-ml && python workflow_integration_test.py
+cd ai-ml && python tests/workflow_integration_test.py
 
 # 3. Check database tables
 psql -h localhost -p 5433 -U predictions_user -d predictions \
