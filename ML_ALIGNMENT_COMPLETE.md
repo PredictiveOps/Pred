@@ -496,7 +496,7 @@ Comprehensive testing: Follow [ML_TESTING_GUIDE.md](ML_TESTING_GUIDE.md)
 DATABASE_URL=postgresql://predictions_user:predictions_password@localhost:5433/predictions
 API_HOST=0.0.0.0
 API_PORT=8000
-MODEL_DIR=./results/models
+MODEL_DIR=./artifacts/models
 ```
 
 **Retraining Config (per tenant):**

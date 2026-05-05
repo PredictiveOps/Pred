@@ -21,7 +21,8 @@ build/
 .idea/
 *.swp
 .DS_Store
-/dataset
-/results/processed
+/data/raw
+/data/processed
+/artifacts/reports
 __pycache__/
 .venv/

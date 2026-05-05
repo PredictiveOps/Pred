@@ -11,7 +11,7 @@ from kafka import KafkaConsumer
 from prediction_module import BearingAnomalyPredictor
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-MODEL_DIR = PROJECT_ROOT / "results" / "models"
+MODEL_DIR = PROJECT_ROOT / "artifacts" / "models"
 
 PREDICTOR = BearingAnomalyPredictor(
     model_path=MODEL_DIR / "vibration_isolation_forest.pkl",

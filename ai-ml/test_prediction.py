@@ -28,9 +28,9 @@ def main() -> None:
     project_root = Path(__file__).resolve().parent
 
     predictor = BearingAnomalyPredictor(
-        model_path=project_root / "results" / "models" / "vibration_isolation_forest.pkl",
-        feature_columns_path=project_root / "results" / "models" / "feature_columns.json",
-        thresholds_path=project_root / "results" / "models" / "anomaly_thresholds.json",
+        model_path=project_root / "artifacts" / "models" / "vibration_isolation_forest.pkl",
+        feature_columns_path=project_root / "artifacts" / "models" / "feature_columns.json",
+        thresholds_path=project_root / "artifacts" / "models" / "anomaly_thresholds.json",
         model_name="vibration_isolation_forest",
         model_version="v1",
     )

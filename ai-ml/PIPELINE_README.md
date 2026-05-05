@@ -293,7 +293,7 @@ See [test_prediction.py](./test_prediction.py) for integration test examples.
 - Verify credentials and permissions
 
 ### Model Loading Issues
-- Check model files exist in results/models/
+- Check model files exist in artifacts/models/
 - Verify feature column names match
 - Ensure threshold files are properly formatted
 

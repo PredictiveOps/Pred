@@ -59,7 +59,7 @@ def run_test(name, fn):
 
 
 # ── Feature columns for the real model ───────────────────────────────────────
-FEATURE_COLS_PATH = PROJECT_ROOT / "results" / "models" / "feature_columns.json"
+FEATURE_COLS_PATH = PROJECT_ROOT / "artifacts" / "models" / "feature_columns.json"
 if FEATURE_COLS_PATH.exists():
     with open(FEATURE_COLS_PATH) as f:
         FEATURE_COLUMNS = json.load(f)
@@ -526,9 +526,9 @@ def test_prediction_module():
     print("\n🤖 BearingAnomalyPredictor (ML Model) Tests")
     from prediction_module import BearingAnomalyPredictor, get_maintenance_decision
 
-    model_path = PROJECT_ROOT / "results" / "models" / "vibration_isolation_forest.pkl"
-    feature_cols_path = PROJECT_ROOT / "results" / "models" / "feature_columns.json"
-    thresholds_path = PROJECT_ROOT / "results" / "models" / "anomaly_thresholds.json"
+    model_path = PROJECT_ROOT / "artifacts" / "models" / "vibration_isolation_forest.pkl"
+    feature_cols_path = PROJECT_ROOT / "artifacts" / "models" / "feature_columns.json"
+    thresholds_path = PROJECT_ROOT / "artifacts" / "models" / "anomaly_thresholds.json"
 
     if not model_path.exists():
         print("  ⚠️  SKIPPED: Model file not found at", model_path)

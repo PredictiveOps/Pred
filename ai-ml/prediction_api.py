@@ -39,7 +39,7 @@ load_dotenv()
 
 # Configuration
 PROJECT_ROOT = Path(__file__).resolve().parent
-MODEL_DIR = PROJECT_ROOT / "results" / "models"
+MODEL_DIR = PROJECT_ROOT / "artifacts" / "models"
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://user:password@localhost:5433/predictions",

@@ -50,7 +50,7 @@ The ML pipeline implementation is **largely aligned** with the final architectur
 - Consistent preprocessing training ↔ inference
 
 **Current State:**
-- ✅ Notebook (`basic_bearing_predictive_maintenance_model.ipynb`) handles feature extraction:
+- ✅ Notebook (`notebooks/basic_bearing_predictive_maintenance_model.ipynb`) handles feature extraction:
   - Window-based aggregation (WINDOW_SIZE=4096, OVERLAP=0.5)
   - Computed statistics: RMS, kurtosis, crest_factor, spectral_energy
   - Imputation via `SimpleImputer` in pipeline
@@ -60,7 +60,7 @@ The ML pipeline implementation is **largely aligned** with the final architectur
 - ✅ Feature columns stored in `feature_columns.json` ensuring consistency
 
 **Code Location:**
-- `basic_bearing_predictive_maintenance_model.ipynb` - Feature extraction cells
+- `notebooks/basic_bearing_predictive_maintenance_model.ipynb` - Feature extraction cells
 - `prediction_module.py` line 70 - Validates feature columns match training
 - `data/processed/bearing_features_sample.csv` - Sample preprocessed data
 
@@ -98,8 +98,8 @@ The ML pipeline implementation is **largely aligned** with the final architectur
 
 **Code Location:**
 - `prediction_module.py` lines 14-60 (Model loading)
-- `ai-ml/results/models/` - Artifacts directory
-- `basic_bearing_predictive_maintenance_model.ipynb` - Training notebook
+- `ai-ml/artifacts/models/` - Artifacts directory
+- `notebooks/basic_bearing_predictive_maintenance_model.ipynb` - Training notebook
 - `model_version_service.py` lines 10-60 (Metadata recording)
 
 **Status:** ✅ ALIGNED - No changes needed
@@ -178,7 +178,7 @@ The ML pipeline implementation is **largely aligned** with the final architectur
 **Code Location:**
 - `prediction_module.py` lines 50-60 (Load thresholds)
 - `prediction_module.py` lines 88-95 (_score_to_status)
-- `ai-ml/results/models/anomaly_thresholds.json` (Config file)
+- `ai-ml/artifacts/models/anomaly_thresholds.json` (Config file)
 
 **Status:** ✅ ALIGNED - No changes needed
 
@@ -664,7 +664,7 @@ DATABASE_URL=postgresql://predictions_user:predictions_password@localhost:5433/p
 
 **Model Files Location:**
 ```
-ai-ml/results/models/
+ai-ml/artifacts/models/
   ├── vibration_isolation_forest.pkl
   ├── feature_columns.json
   └── anomaly_thresholds.json
