@@ -116,9 +116,37 @@ func TestRoutes_GetPendingPredictions(t *testing.T) {
 	ids := map[string]bool{}
 	for _, raw := range predictions {
 		p := raw.(map[string]any)
-		ids[p["prediction_id"].(string)] = true
-		if p["tenant_id"].(string) != tenantID {
-			t.Errorf("result tenant_id = %q, want %q", p["tenant_id"], tenantID)
+
+		// Check if prediction_id exists and is not nil
+		predictionID, ok := p["prediction_id"]
+		if !ok || predictionID == nil {
+			t.Errorf("prediction_id is missing or nil in response: %v", p)
+			continue
+		}
+
+		predIDStr, ok := predictionID.(string)
+		if !ok {
+			t.Errorf("prediction_id is not a string: %T, value: %v", predictionID, predictionID)
+			continue
+		}
+
+		ids[predIDStr] = true
+
+		// Check tenant_id with nil safety
+		tenantIDField, ok := p["tenant_id"]
+		if !ok || tenantIDField == nil {
+			t.Errorf("tenant_id is missing or nil in response: %v", p)
+			continue
+		}
+
+		tenantIDStr, ok := tenantIDField.(string)
+		if !ok {
+			t.Errorf("tenant_id is not a string: %T, value: %v", tenantIDField, tenantIDField)
+			continue
+		}
+
+		if tenantIDStr != tenantID {
+			t.Errorf("result tenant_id = %q, want %q", tenantIDStr, tenantID)
 		}
 	}
 	for _, wantID := range predIDs {
@@ -173,10 +201,38 @@ func TestRoutes_GetReviewedPredictions(t *testing.T) {
 	ids := map[string]bool{}
 	for _, raw := range reviews {
 		rv := raw.(map[string]any)
-		if rv["tenant_id"].(string) != tenantID {
-			t.Errorf("result tenant_id = %q, want %q", rv["tenant_id"], tenantID)
+
+		// Check tenant_id with nil safety
+		tenantIDField, ok := rv["tenant_id"]
+		if !ok || tenantIDField == nil {
+			t.Errorf("tenant_id is missing or nil in review response: %v", rv)
+			continue
 		}
-		ids[rv["review_id"].(string)] = true
+
+		tenantIDStr, ok := tenantIDField.(string)
+		if !ok {
+			t.Errorf("tenant_id is not a string: %T, value: %v", tenantIDField, tenantIDField)
+			continue
+		}
+
+		if tenantIDStr != tenantID {
+			t.Errorf("result tenant_id = %q, want %q", tenantIDStr, tenantID)
+		}
+
+		// Check review_id with nil safety
+		reviewIDField, ok := rv["review_id"]
+		if !ok || reviewIDField == nil {
+			t.Errorf("review_id is missing or nil in review response: %v", rv)
+			continue
+		}
+
+		reviewIDStr, ok := reviewIDField.(string)
+		if !ok {
+			t.Errorf("review_id is not a string: %T, value: %v", reviewIDField, reviewIDField)
+			continue
+		}
+
+		ids[reviewIDStr] = true
 	}
 	for _, wantID := range []string{"rt-rv-1", "rt-rv-2"} {
 		if !ids[wantID] {
@@ -227,13 +283,34 @@ func TestRoutes_UpdateAndGetRetrainingConfig(t *testing.T) {
 		t.Fatalf("GET status = %d, want 200 — body: %s", rec.Code, rec.Body.String())
 	}
 	body := decodeJSON(t, rec)
-	if body["tenant_id"].(string) != tenantID {
-		t.Errorf("tenant_id = %q, want %q", body["tenant_id"], tenantID)
+
+	// Check tenant_id with nil safety
+	tenantIDField, ok := body["tenant_id"]
+	if !ok || tenantIDField == nil {
+		t.Errorf("tenant_id is missing or nil in config response: %v", body)
+	} else if tenantIDStr, ok := tenantIDField.(string); !ok {
+		t.Errorf("tenant_id is not a string: %T, value: %v", tenantIDField, tenantIDField)
+	} else if tenantIDStr != tenantID {
+		t.Errorf("tenant_id = %q, want %q", tenantIDStr, tenantID)
 	}
-	if int(body["minimum_reviewed_records"].(float64)) != 250 {
-		t.Errorf("minimum_reviewed_records = %v, want 250", body["minimum_reviewed_records"])
+
+	// Check minimum_reviewed_records with nil safety
+	minRecordsField, ok := body["minimum_reviewed_records"]
+	if !ok || minRecordsField == nil {
+		t.Errorf("minimum_reviewed_records is missing or nil in config response: %v", body)
+	} else if minRecordsFloat, ok := minRecordsField.(float64); !ok {
+		t.Errorf("minimum_reviewed_records is not a number: %T, value: %v", minRecordsField, minRecordsField)
+	} else if int(minRecordsFloat) != 250 {
+		t.Errorf("minimum_reviewed_records = %v, want 250", minRecordsFloat)
 	}
-	if !body["auto_retrain_enabled"].(bool) {
+
+	// Check auto_retrain_enabled with nil safety
+	autoRetrainField, ok := body["auto_retrain_enabled"]
+	if !ok || autoRetrainField == nil {
+		t.Errorf("auto_retrain_enabled is missing or nil in config response: %v", body)
+	} else if autoRetrainBool, ok := autoRetrainField.(bool); !ok {
+		t.Errorf("auto_retrain_enabled is not a boolean: %T, value: %v", autoRetrainField, autoRetrainField)
+	} else if !autoRetrainBool {
 		t.Error("auto_retrain_enabled = false, want true")
 	}
 }
@@ -266,11 +343,25 @@ func TestRoutes_ApproveRetrainingRequest(t *testing.T) {
 		t.Fatalf("status = %d, want 200 — body: %s", rec.Code, rec.Body.String())
 	}
 	body := decodeJSON(t, rec)
-	if body["status"].(string) != "approved" {
-		t.Errorf("status = %q, want approved", body["status"])
+
+	// Check status with nil safety
+	statusField, ok := body["status"]
+	if !ok || statusField == nil {
+		t.Errorf("status is missing or nil in response: %v", body)
+	} else if statusStr, ok := statusField.(string); !ok {
+		t.Errorf("status is not a string: %T, value: %v", statusField, statusField)
+	} else if statusStr != "approved" {
+		t.Errorf("status = %q, want approved", statusStr)
 	}
-	if body["request_id"].(string) != requestID {
-		t.Errorf("request_id = %q, want %q", body["request_id"], requestID)
+
+	// Check request_id with nil safety
+	requestIDField, ok := body["request_id"]
+	if !ok || requestIDField == nil {
+		t.Errorf("request_id is missing or nil in response: %v", body)
+	} else if requestIDStr, ok := requestIDField.(string); !ok {
+		t.Errorf("request_id is not a string: %T, value: %v", requestIDField, requestIDField)
+	} else if requestIDStr != requestID {
+		t.Errorf("request_id = %q, want %q", requestIDStr, requestID)
 	}
 
 	// Verify DB state was updated.
@@ -318,10 +409,38 @@ func TestRoutes_GetModelVersions(t *testing.T) {
 	found := false
 	for _, raw := range versions {
 		v := raw.(map[string]any)
-		if v["model_id"].(string) == modelID {
+
+		// Check model_id with nil safety
+		modelIDField, ok := v["model_id"]
+		if !ok || modelIDField == nil {
+			t.Errorf("model_id is missing or nil in version response: %v", v)
+			continue
+		}
+
+		modelIDStr, ok := modelIDField.(string)
+		if !ok {
+			t.Errorf("model_id is not a string: %T, value: %v", modelIDField, modelIDField)
+			continue
+		}
+
+		if modelIDStr == modelID {
 			found = true
-			if v["deployment_status"].(string) != "trained" {
-				t.Errorf("deployment_status = %q, want trained", v["deployment_status"])
+
+			// Check deployment_status with nil safety
+			deploymentStatusField, ok := v["deployment_status"]
+			if !ok || deploymentStatusField == nil {
+				t.Errorf("deployment_status is missing or nil in version response: %v", v)
+				continue
+			}
+
+			deploymentStatusStr, ok := deploymentStatusField.(string)
+			if !ok {
+				t.Errorf("deployment_status is not a string: %T, value: %v", deploymentStatusField, deploymentStatusField)
+				continue
+			}
+
+			if deploymentStatusStr != "trained" {
+				t.Errorf("deployment_status = %q, want trained", deploymentStatusStr)
 			}
 		}
 	}
@@ -373,8 +492,15 @@ func TestRoutes_ApproveModelVersion(t *testing.T) {
 		t.Fatalf("status = %d, want 200 — body: %s", rec.Code, rec.Body.String())
 	}
 	body := decodeJSON(t, rec)
-	if body["status"].(string) != "approved" {
-		t.Errorf("status = %q, want approved", body["status"])
+
+	// Check status with nil safety
+	statusField, ok := body["status"]
+	if !ok || statusField == nil {
+		t.Errorf("status is missing or nil in response: %v", body)
+	} else if statusStr, ok := statusField.(string); !ok {
+		t.Errorf("status is not a string: %T, value: %v", statusField, statusField)
+	} else if statusStr != "approved" {
+		t.Errorf("status = %q, want approved", statusStr)
 	}
 
 	// Confirm DB state.
@@ -417,8 +543,15 @@ func TestRoutes_DeployModelVersion(t *testing.T) {
 		t.Fatalf("status = %d, want 200 — body: %s", rec.Code, rec.Body.String())
 	}
 	body := decodeJSON(t, rec)
-	if body["status"].(string) != "deployed" {
-		t.Errorf("status = %q, want deployed", body["status"])
+
+	// Check status with nil safety
+	statusField, ok := body["status"]
+	if !ok || statusField == nil {
+		t.Errorf("status is missing or nil in response: %v", body)
+	} else if statusStr, ok := statusField.(string); !ok {
+		t.Errorf("status is not a string: %T, value: %v", statusField, statusField)
+	} else if statusStr != "deployed" {
+		t.Errorf("status = %q, want deployed", statusStr)
 	}
 
 	// Verify the active model was set.
