@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import urlparse, urljoin
 
 import pandas as pd
 
@@ -53,6 +54,11 @@ def parse_args() -> argparse.Namespace:
         "--loop",
         action="store_true",
         help="Loop indefinitely when CSV replay reaches the end.",
+    )
+    parser.add_argument(
+        "--save-then-predict",
+        action="store_true",
+        help="POST features to /processed-features then call /predict (automatically).",
     )
     return parser.parse_args()
 
@@ -145,7 +151,35 @@ def replay(
             for idx, row in data_frame.iterrows():
                 features, expected_status = split_features_and_status(row)
                 packet = build_packet(features)
-                status_code, response_body = post_json(endpoint, packet)
+                # If save_then_predict is requested, POST to /processed-features
+                # then call /predict on the API base URL. Otherwise use the
+                # provided endpoint directly (backwards compatible).
+                if hasattr(replay, "_save_then_predict") and replay._save_then_predict:
+                    parsed = urlparse(endpoint)
+                    base = f"{parsed.scheme}://{parsed.netloc}"
+                    processed_url = urljoin(base, "/processed-features")
+                    predict_url = urljoin(base, "/predict")
+
+                    processed_payload = {
+                        "tenant_id": "demo_tenant",
+                        "device_id": packet["device_id"],
+                        "asset_id": packet["asset_id"],
+                        "features": packet["features"],
+                        "feature_timestamp": packet["timestamp"],
+                        "feature_version": "v1",
+                    }
+
+                    status_code_pf, response_body_pf = post_json(processed_url, processed_payload)
+                    # Call predict request (API will read latest features from DB)
+                    predict_payload = {
+                        "tenant_id": "demo_tenant",
+                        "device_id": packet["device_id"],
+                        "asset_id": packet["asset_id"],
+                        "features": packet["features"],
+                    }
+                    status_code, response_body = post_json(predict_url, predict_payload)
+                else:
+                    status_code, response_body = post_json(endpoint, packet)
 
                 print("\n--- Sent packet ---")
                 print(json.dumps(packet, indent=2, ensure_ascii=False))
@@ -221,6 +255,9 @@ def main() -> None:
     print(f"Sending predictions to: {args.endpoint}")
     print(f"Logging responses to: {log_path}")
     print(f"Loop mode: {args.loop}")
+
+    # Attach flag to replay function to avoid changing its signature
+    replay._save_then_predict = bool(getattr(args, "save_then_predict", False))
 
     replay(
         data_frame=data_frame,

@@ -39,10 +39,10 @@ source .venv/bin/activate
 The API expects a `predictions` database with a `predictions_user` role. Create it:
 
 ```bash
-docker exec -i anomalydetectionproject-postgres-1 psql -U postgres -d postgres \
+docker exec -i anomaly_detection_project-postgres-1 psql -U postgres -d postgres \
   -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'predictions_user') THEN CREATE ROLE predictions_user LOGIN PASSWORD 'predictions_password'; END IF; END \$\$;"
 
-docker exec -i anomalydetectionproject-postgres-1 createdb -U postgres -O predictions_user predictions 2>/dev/null || true
+docker exec -i anomaly_detection_project-postgres-1 createdb -U postgres -O predictions_user predictions 2>/dev/null || true
 ```
 
 ### 4. Start the Prediction API
