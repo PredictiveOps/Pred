@@ -1,0 +1,154 @@
+name: CI - Ingestion Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ingestion-service/**"
+      - ".github/workflows/ci-ingestion-service.yml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "ingestion-service/**"
+      - ".github/workflows/ci-ingestion-service.yml"
+
+  workflow_dispatch:
+
+env:
+  SERVICE_NAME: ingestion-service
+  IMAGE_TAG: ${{ github.sha }}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  Build:
+    name: Build Go Service
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ingestion-service/go.mod
+          cache-dependency-path: ingestion-service/go.sum
+
+      - name: Download Go dependencies
+        working-directory: ingestion-service
+        run: go mod download
+
+      - name: Build ingestion service
+        working-directory: ingestion-service
+        run: go build ./...
+
+      - name: Notify if build fails
+        if: failure()
+        run: echo "Ingestion service build failed. Check the logs."
+
+  Testing:
+    name: Test Go Service
+    runs-on: ubuntu-latest
+    needs: Build
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ingestion-service/go.mod
+          cache-dependency-path: ingestion-service/go.sum
+
+      - name: Run Go tests
+        working-directory: ingestion-service
+        run: go test ./...
+
+      - name: Notify if tests fail
+        if: failure()
+        run: echo "Ingestion service tests failed. Check the logs."
+
+  Security-Scan:
+    name: Trivy Filesystem Scan
+    runs-on: ubuntu-latest
+    needs: Build
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: filesystem
+          scan-ref: ingestion-service
+          format: json
+          output: trivy-ingestion-service-results.json
+          exit-code: "0"
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-ingestion-service-results
+          path: trivy-ingestion-service-results.json
+
+  BUILD_AND_PUBLISH:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [Build, Testing, Security-Scan]
+
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f ingestion-service/Dockerfile \
+            -t ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ env.IMAGE_TAG }} \
+            ingestion-service
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ env.IMAGE_TAG }}
+          format: table
+          exit-code: "0"
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Push Docker image to Artifact Registry
+        run: |
+          docker push ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ env.IMAGE_TAG }}
