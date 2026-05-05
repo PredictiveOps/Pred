@@ -21,9 +21,8 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-func startHTTPServer(gdb *gorm.DB, hub *Hub) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/notifications", func(w http.ResponseWriter, r *http.Request) {
+func notificationsHandler(gdb *gorm.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		addCORSHeaders(w)
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -63,7 +62,12 @@ func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		json.NewEncoder(w).Encode(notifs)
-	})
+	}
+}
+
+func startHTTPServer(gdb *gorm.DB, hub *Hub) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/notifications", notificationsHandler(gdb))
 
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		tenantID := r.URL.Query().Get("tenant_id")
