@@ -16,11 +16,12 @@ type KafkaProducer struct {
 func NewKafkaProducer(brokersCSV, topic string) *KafkaProducer {
 	brokers := strings.Split(brokersCSV, ",")
 	w := &kafka.Writer{
-		Addr:         kafka.TCP(brokers...),
-		Topic:        topic,
-		Balancer:     &kafka.LeastBytes{},
-		RequiredAcks: kafka.RequireOne,
-		Async:        true,
+		Addr:                 kafka.TCP(brokers...),
+		Topic:                topic,
+		Balancer:             &kafka.LeastBytes{},
+		RequiredAcks:         kafka.RequireOne,
+		Async:                true,
+		AllowAutoTopicCreation: true,
 	}
 
 	return &KafkaProducer{
