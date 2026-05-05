@@ -6,7 +6,7 @@ Consumes raw events from a Kafka topic and persists them to PostgreSQL for downs
 
 - **Consume** — reads raw event messages from a configured Kafka topic using a consumer group, enabling horizontal scaling
 - **Persist** — stores every event in the database with tenant context and the original payload
-- **Process** — placeholder for downstream processing logic (currently a stub)
+- **Process** — aggregates raw events into ML features and publishes to a Kafka topic for downstream consumers
 - **Serve** — exposes HTTP endpoints (powered by `gin`) consumed by the web frontend; runs alongside the Kafka consumer in the same process
 
 ## Database
@@ -26,6 +26,7 @@ Every event is scoped to a tenant. Tenant context is carried in the Kafka messag
 | `KAFKA_GROUP_ID` | `event-processing-service`                    | Consumer group ID — instances sharing this ID split partitions between them |
 | `DATABASE_URL`   | `postgres://localhost:5432/events`            | PostgreSQL connection string                                                |
 | `HTTP_PORT`      | `8080`                                        | Port the HTTP API listens on                                                |
+| `ML_FEATURES_TOPIC` | `ml-features`                              | Kafka topic where aggregated ML feature payloads are published              |
 
 ## Running
 

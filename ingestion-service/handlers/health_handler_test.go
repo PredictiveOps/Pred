@@ -14,7 +14,7 @@ import (
 func TestHealthCheck_Returns200WithStatusOK(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.GET("/health", handlers.HealthCheck)
+	r.GET("/health", handlers.HealthCheck(nil))
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
