@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose -f docker-compose.test.yml
 
-.PHONY: test-all test-down-all coverage-summary
+.PHONY: test-all test-down-all coverage-summary clean-test
 
 test-all:
 	$(COMPOSE) up -d --wait
@@ -33,3 +33,9 @@ coverage-summary:
 
 test-down-all:
 	$(COMPOSE) down -v
+
+clean-test:
+	go clean -testcache
+	@for svc in notifications-service event-processing-service ingestion-service; do \
+	  rm -f $$svc/coverage.out; \
+	done
