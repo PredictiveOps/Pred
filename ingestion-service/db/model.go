@@ -45,6 +45,19 @@ type SensorDeviceData struct {
 	Status  string  `json:"status"`
 }
 
+// NewTelemetryData is the newer simulator schema.
+type NewTelemetryData struct {
+	DeviceName      string  `json:"device_name"`
+	Timestamp       string  `json:"timestamp"`
+	VibrationX      float64 `json:"vibration_x"`
+	VibrationY      float64 `json:"vibration_y"`
+	TempMotor       float64 `json:"temp_motor"`
+	TempAtmospheric float64 `json:"temp_atmospheric"`
+}
+
+// OldTelemetryData matches SensorDeviceData exactly.
+type OldTelemetryData = SensorDeviceData
+
 type MQTTPayload struct {
 	Timestamp int64           `json:"timestamp"`
 	Nonce     string          `json:"nonce"`

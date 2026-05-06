@@ -24,6 +24,7 @@ Devices are persisted in PostgreSQL. Schema is managed by GORM via `AutoMigrate`
 | `MQTT_BROKER`     | `ssl://localhost:8883`         | MQTT broker URL                                                             |
 | `MQTT_CLIENT_ID`  | required                       | MQTT client ID                                                              |
 | `MQTT_TOPIC`      | required                       | MQTT topic subscribed to for device data                                    |
+| `MQTT_PAYLOAD_FORMAT` | `auto`                    | Schema parser mode: `auto`, `ingestion`, `new`, or `old`                    |
 | `MQTT_USERNAME`   | optional                       | MQTT username                                                               |
 | `MQTT_PASSWORD`   | optional                       | MQTT password                                                               |
 | `MQTT_CA_CERT`    | optional                       | CA certificate path for private/self-signed MQTTS broker certificates       |
@@ -62,6 +63,13 @@ On success you will receive `{"registration_status":"ok"}` (HTTP 201).
 If you see `{"error":"failed to register device"}` the service logged the underlying DB error — check the service logs for details (timestamp mismatch or schema issues are common when models change).
 
 ## MQTT Device Data Payload Format
+
+`MQTT_PAYLOAD_FORMAT` controls which schema is accepted:
+
+- `auto` (default): try `ingestion` then `new` then `old`
+- `ingestion`: signed `data` with `mode`, `v_rms`, `temp_c`, `peak_hz_1`, `peak_hz_2`, `peak_hz_3`, `status`
+- `new`: signed `data` with `device_name`, scalar `vibration_x`, `vibration_y`, `temp_motor`, `temp_atmospheric`
+- `old`: signed `data` with legacy vibration arrays and temperatures
 
 Devices send signed telemetry via MQTT to `devices/{deviceID}/data`. The payload envelope must contain:
 

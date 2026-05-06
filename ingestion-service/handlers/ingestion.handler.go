@@ -67,9 +67,9 @@ func handleMQTTDataMessage(deviceID uint, msg mqtt.Message) {
 		return
 	}
 
-	var sensorData db.SensorDeviceData
-	if err := json.Unmarshal(message.Data, &sensorData); err != nil {
-		log.Printf("failed to unmarshal sensor data: device_id=%d err=%v", deviceID, err)
+	sensorData, err := parseSensorDataFromSchema(message.Data)
+	if err != nil {
+		log.Printf("failed to parse sensor data payload: device_id=%d schema=%s err=%v", deviceID, payloadSchemaFormat, err)
 		return
 	}
 

@@ -10,7 +10,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var Port, DatabaseURL, KafkaBrokers, KafkaTopic, MQTTBroker, MQTTClientID, MQTTTopic, MQTTDeviceRegistrationTopic, MQTTDeviceRegistrationResponseTopic, MQTTUsername, MQTTPassword, MQTTCACert string
+var Port, DatabaseURL, KafkaBrokers, KafkaTopic, MQTTBroker, MQTTClientID, MQTTTopic, MQTTDeviceRegistrationTopic, MQTTDeviceRegistrationResponseTopic, MQTTUsername, MQTTPassword, MQTTCACert, MQTTPayloadFormat string
 var RedisAddr, RedisPassword, RedisPubKeyTTL, RedisNonceTTL string
 var RedisDB int
 
@@ -35,6 +35,7 @@ func LoadConfig() {
 	MQTTUsername = os.Getenv("MQTT_USERNAME")
 	MQTTPassword = os.Getenv("MQTT_PASSWORD")
 	MQTTCACert = os.Getenv("MQTT_CA_CERT")
+	MQTTPayloadFormat = getEnv("MQTT_PAYLOAD_FORMAT", "auto")
 	RedisAddr = getEnv("REDIS_ADDR", "localhost:6379")
 	RedisPassword = os.Getenv("REDIS_PASSWORD")
 	RedisPubKeyTTL = getEnv("REDIS_PUBKEY_TTL", "30m")

@@ -116,11 +116,12 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/ingestion
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_TOPIC=sensor_data
-      - MQTT_BROKER=tcp://mosquitto:8883
+      - MQTT_BROKER=ssl://mosquitto:8883
       - MQTT_CLIENT_ID=ingestion-service
       - MQTT_USERNAME=${MQTT_INGESTION_USERNAME:-pred-ingestion}
       - MQTT_PASSWORD=${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
       - MQTT_TOPIC=devices/+/data
+      - MQTT_PAYLOAD_FORMAT=${MQTT_PAYLOAD_FORMAT:-auto}
       - MQTT_DEVICE_REGISTRATION_TOPIC=devices/+/registration
       - MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC=devices/%d/registration/response
       - REDIS_ADDR=redis:6379

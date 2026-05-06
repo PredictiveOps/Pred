@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Simple raw telemetry engine publishing per-sample vibration + temps over MQTT.
+"""Raw telemetry engine with switchable payload formats over MQTT.
 
-Publishes JSON messages with the structure:
+Publishes JSON messages with the default "new" structure:
   {
     "device_name": "demo_device_001",
     "timestamp": "2026-05-06T12:00:00Z",
@@ -11,17 +11,23 @@ Publishes JSON messages with the structure:
     "temp_atmospheric": 20.3
   }
 
-Controls: `--rate`, `--workers`, `--duration`, `--count`, and `--delay`.
-Designed for easy integration with the existing mosquitto/ingestion pipeline.
+You can switch to the previous ("old") simulator payload structure with
+`--format old`.
+
+Controls: `--rate`, `--workers`, `--duration`, `--count`, and `--format`.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import json
+import os
 import random
+import ssl
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -31,9 +37,16 @@ try:
 except ImportError as exc:  # pragma: no cover - runtime guidance
     raise SystemExit("Install paho-mqtt first: pip install paho-mqtt") from exc
 
+try:
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+except ImportError:  # pragma: no cover - optional signed mode only
+    hashes = serialization = ec = None
+
 
 DEFAULT_BROKER = "localhost"
 DEFAULT_PORT = 8883
+DEFAULT_CA_CERT = "mosquitto/certs/ca.crt"
 DEFAULT_TOPIC_TEMPLATE = "devices/{device_id}/data"
 DEFAULT_TARGET_RATE = 1000.0
 
@@ -41,6 +54,8 @@ DEFAULT_TARGET_RATE = 1000.0
 @dataclass(frozen=True)
 class Config:
     device_id: str
+    asset_id: str
+    payload_format: str
     target_rate: float
     duration_seconds: float
     count: int
@@ -50,6 +65,9 @@ class Config:
     port: int
     username: str
     password: str
+    ca_cert: str | None
+    signed: bool
+    private_key_path: Path | None
     seed: int | None
     progress_interval: int
     tls_insecure: bool
@@ -84,6 +102,13 @@ class StopState:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Raw telemetry engine (vibration + temps) for MQTT load testing")
     p.add_argument("--device", default="demo_device_001", help="Device ID used in topic and payload")
+    p.add_argument("--asset", default="bearing_motor_001", help="Asset ID (used by old format)")
+    p.add_argument(
+        "--format",
+        choices=["new", "old"],
+        default="new",
+        help="Payload format: 'new' (device_name, scalar vibration/temp) or 'old' (legacy simulator schema)",
+    )
     p.add_argument("--rate", type=float, default=DEFAULT_TARGET_RATE, help="Target total messages/sec")
     p.add_argument("--duration", type=float, default=60.0, help="Run duration seconds; 0 means unlimited until --count")
     p.add_argument("--count", type=int, default=0, help="Total messages to send; 0 = no limit")
@@ -93,6 +118,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--port", type=int, default=DEFAULT_PORT, help="MQTT broker port")
     p.add_argument("--username", default="pred-device", help="MQTT username")
     p.add_argument("--password", default="dev-device-password", help="MQTT password")
+    p.add_argument(
+        "--ca-cert",
+        default=DEFAULT_CA_CERT,
+        help="CA certificate for TLS validation; empty string disables TLS setup",
+    )
+    p.add_argument("--signed", action="store_true", help="Wrap payload in signed envelope expected by ingestion")
+    p.add_argument("--private-key", type=Path, default=None, help="PEM private key path for --signed mode")
     p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducible streams")
     p.add_argument("--progress-interval", type=int, default=1000, help="Print progress every N messages; 0 disables")
     p.add_argument("--tls-insecure", action="store_true", help="Disable TLS cert validation for self-signed brokers")
@@ -108,12 +140,31 @@ def build_config(args: argparse.Namespace) -> Config:
         raise ValueError("--count must be >= 0")
     if args.duration < 0:
         raise ValueError("--duration must be >= 0")
+    if args.username == "pred-device" and args.workers > 1:
+        raise ValueError(
+            "--workers > 1 is not allowed with pred-device user in this setup; "
+            "broker ACL requires client_id == device_id"
+        )
 
     project_root = Path(__file__).resolve().parents[1]
     topic = args.topic or DEFAULT_TOPIC_TEMPLATE.format(device_id=args.device)
+    ca_cert = args.ca_cert.strip() if args.ca_cert else None
+    if ca_cert == "":
+        ca_cert = None
+    elif ca_cert is not None:
+        ca_path = Path(ca_cert)
+        if not ca_path.is_absolute():
+            ca_path = (project_root / ca_path).resolve()
+        ca_cert = str(ca_path)
+
+    private_key = args.private_key
+    if private_key is not None and not private_key.is_absolute():
+        private_key = (project_root / private_key).resolve()
 
     return Config(
         device_id=args.device,
+        asset_id=args.asset,
+        payload_format=args.format,
         target_rate=args.rate,
         duration_seconds=args.duration,
         count=args.count,
@@ -123,6 +174,9 @@ def build_config(args: argparse.Namespace) -> Config:
         port=args.port,
         username=args.username,
         password=args.password,
+        ca_cert=ca_cert,
+        signed=args.signed,
+        private_key_path=private_key,
         seed=args.seed,
         progress_interval=args.progress_interval,
         tls_insecure=args.tls_insecure,
@@ -130,11 +184,45 @@ def build_config(args: argparse.Namespace) -> Config:
 
 
 def create_client(cfg: Config, worker_id: int) -> mqtt.Client:
-    client = mqtt.Client(client_id=f"raw_telemetry_{cfg.device_id}_{worker_id}")
+    if cfg.username == "pred-device" and cfg.workers == 1:
+        # Match mosquitto ACL pattern write devices/%c/data where %c is client_id.
+        client_id = str(cfg.device_id)
+    else:
+        client_id = f"raw_telemetry_{cfg.device_id}_{worker_id}"
+
+    client = mqtt.Client(client_id=client_id)
     client.username_pw_set(cfg.username, cfg.password)
-    # TLS setup is intentionally minimal; broker-side certs expected in compose.
-    # If using TLS with self-signed certs, the mosquitto service uses CA certs.
+    if cfg.ca_cert:
+        client.tls_set(ca_certs=cfg.ca_cert, tls_version=ssl.PROTOCOL_TLSv1_2)
+        client.tls_insecure_set(cfg.tls_insecure)
     return client
+
+
+def load_private_key(private_key_path: Path):
+    if serialization is None:
+        raise RuntimeError(
+            "Signed mode requires the cryptography package. "
+            "Install it with: pip install cryptography"
+        )
+    key_text = private_key_path.read_text(encoding="utf-8")
+    return serialization.load_pem_private_key(key_text.encode("utf-8"), password=None)
+
+
+def build_signed_envelope(data_payload: dict[str, Any], sequence: int, private_key) -> str:
+    # Sign exactly the bytes that will appear in the data field.
+    data_json = json.dumps(data_payload, separators=(",", ":"), sort_keys=False)
+    signature = private_key.sign(data_json.encode("utf-8"), ec.ECDSA(hashes.SHA256()))
+    signature_b64 = base64.b64encode(signature).decode("utf-8")
+    nonce = f"n-{sequence}-{uuid.uuid4().hex}"
+    envelope = (
+        "{"
+        f'"timestamp":{int(time.time())},'
+        f'"nonce":"{nonce}",'
+        f'"data":{data_json},'
+        f'"signature":"{signature_b64}"'
+        "}"
+    )
+    return envelope
 
 
 def generate_sample(rng: random.Random) -> dict[str, Any]:
@@ -151,7 +239,40 @@ def generate_sample(rng: random.Random) -> dict[str, Any]:
     }
 
 
-def worker_loop(worker_id: int, cfg: Config, sent_counter: AtomicCounter, stop_state: StopState, started_at: float) -> int:
+def build_new_format_payload(cfg: Config, sample: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "device_name": cfg.device_id,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "vibration_x": sample["vibration_x"],
+        "vibration_y": sample["vibration_y"],
+        "temp_motor": sample["temp_motor"],
+        "temp_atmospheric": sample["temp_atmospheric"],
+    }
+
+
+def build_old_format_payload(cfg: Config, sample: dict[str, Any], rng: random.Random) -> dict[str, Any]:
+    # Keep compatibility with the original raw_data_simulator payload fields.
+    vibration_x = [round(rng.normalvariate(sample["vibration_x"], 0.02), 5) for _ in range(10)]
+    vibration_y = [round(rng.normalvariate(sample["vibration_y"], 0.02), 5) for _ in range(10)]
+    return {
+        "device_id": cfg.device_id,
+        "asset_id": cfg.asset_id,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "vibration_x": vibration_x,
+        "vibration_y": vibration_y,
+        "temperature_bearing": sample["temp_motor"],
+        "temperature_atmospheric": sample["temp_atmospheric"],
+    }
+
+
+def worker_loop(
+    worker_id: int,
+    cfg: Config,
+    sent_counter: AtomicCounter,
+    stop_state: StopState,
+    started_at: float,
+    private_key,
+) -> int:
     rng = random.Random((cfg.seed or int(time.time())) + worker_id * 1000)
     client = create_client(cfg, worker_id)
     client.connect(cfg.broker, cfg.port, 60)
@@ -182,13 +303,17 @@ def worker_loop(worker_id: int, cfg: Config, sent_counter: AtomicCounter, stop_s
                 break
 
             sample = generate_sample(rng)
-            payload = {
-                "device_name": cfg.device_id,
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                **sample,
-            }
+            if cfg.payload_format == "old":
+                data_payload = build_old_format_payload(cfg, sample, rng)
+            else:
+                data_payload = build_new_format_payload(cfg, sample)
 
-            client.publish(cfg.topic, json.dumps(payload), qos=0)
+            if cfg.signed:
+                payload = build_signed_envelope(data_payload, current_seq, private_key)
+            else:
+                payload = json.dumps(data_payload, separators=(",", ":"), sort_keys=False)
+
+            client.publish(cfg.topic, payload, qos=0)
             sent += 1
 
             if cfg.progress_interval > 0 and current_seq % cfg.progress_interval == 0:
@@ -218,10 +343,27 @@ def main() -> None:
     print(f"Broker: {cfg.broker}:{cfg.port}")
     print(f"Topic: {cfg.topic}")
     print(f"Device: {cfg.device_id}")
+    print(f"Asset: {cfg.asset_id}")
+    print(f"Payload format: {cfg.payload_format}")
+    print(f"Signed envelope: {cfg.signed}")
+    print(f"TLS CA cert: {cfg.ca_cert or 'disabled'}")
+    if cfg.private_key_path:
+        print(f"Private key: {cfg.private_key_path}")
     print(f"Target rate: {cfg.target_rate} msg/s")
     print(f"Workers: {cfg.workers}")
     print(f"Duration: {cfg.duration_seconds}s")
     print(f"Count limit: {cfg.count or 'unlimited'}")
+
+    private_key = None
+    if cfg.signed:
+        key_path = cfg.private_key_path
+        if key_path is None:
+            key_env = os.getenv("DEVICE_PRIVATE_KEY")
+            if key_env:
+                key_path = Path(key_env)
+        if key_path is None:
+            raise SystemExit("--signed requires --private-key or DEVICE_PRIVATE_KEY")
+        private_key = load_private_key(key_path)
 
     sent_counter = AtomicCounter()
     stop_state = StopState()
@@ -231,7 +373,7 @@ def main() -> None:
     results: list[int] = [0] * cfg.workers
 
     def run_worker(i: int) -> None:
-        results[i] = worker_loop(i + 1, cfg, sent_counter, stop_state, started_at)
+        results[i] = worker_loop(i + 1, cfg, sent_counter, stop_state, started_at, private_key)
 
     for i in range(cfg.workers):
         t = threading.Thread(target=run_worker, args=(i,), daemon=True)

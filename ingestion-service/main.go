@@ -63,6 +63,7 @@ func main() {
 		log.Fatalf("Failed to initialize Redis cache: %v", err)
 	}
 	handlers.SetRedisCache(redisCache)
+	handlers.SetPayloadSchemaFormat(config.MQTTPayloadFormat)
 	log.Printf("Redis cache initialized")
 
 	// Start HTTP server as early as possible so health checks can succeed even

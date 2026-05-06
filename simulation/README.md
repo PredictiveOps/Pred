@@ -34,6 +34,30 @@ python3 simulation/raw_telemetry_engine.py --format new --rate 500 --workers 2 -
 python3 simulation/raw_telemetry_engine.py --format old --rate 500 --workers 2 --duration 60 --asset bearing_motor_001
 ```
 
+### Signature for new/old formats
+
+Use `--signed` with a device private key PEM to generate the signature accepted by ingestion.
+
+```bash
+python3 simulation/raw_telemetry_engine.py --format new --device 1 --signed --private-key /absolute/path/device-private.pem --count 10 --duration 0
+python3 simulation/raw_telemetry_engine.py --format old --device 1 --signed --private-key /absolute/path/device-private.pem --count 10 --duration 0
+```
+
+How signature is built:
+
+- Telemetry object (new or old schema) is serialized as compact JSON.
+- ECDSA-SHA256 signature is computed over the exact bytes of that `data` JSON.
+- Final MQTT payload is wrapped as:
+
+```json
+{
+  "timestamp": 1715000000,
+  "nonce": "n-123",
+  "data": { ... new-or-old-schema ... },
+  "signature": "BASE64_ECDSA_SIGNATURE"
+}
+```
+
 ## Kafka forwarding compatibility (important)
 
 The current `ingestion-service` expects signed MQTT envelopes on topic pattern:
@@ -60,3 +84,19 @@ Envelope shape expected by ingestion:
 ```
 
 Because of this, `raw_telemetry_engine.py` formats (`new` and `old`) are useful for raw MQTT load simulation, but are **not** accepted by ingestion for Kafka forwarding unless you add a mapper/signer or extend ingestion schema validation.
+
+## Ingestion schema switch
+
+`ingestion-service` now supports payload schema mode via `MQTT_PAYLOAD_FORMAT`:
+
+- `auto` (default): tries ingestion schema, then new schema, then old schema
+- `ingestion`: accept only the original `mode/v_rms/temp_c/peak_hz_*/status` schema
+- `new`: accept only new schema (`device_name`, scalar vibration/temp)
+- `old`: accept only old schema (legacy vibration arrays + temperatures)
+
+Set it in compose env or shell before start:
+
+```bash
+export MQTT_PAYLOAD_FORMAT=auto
+docker compose up -d ingestion-service
+```

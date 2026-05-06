@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"ingestion-service/db"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -18,7 +19,25 @@ import (
 const (
 	mqttTopicData         = "data"
 	mqttTopicRegistration = "registration"
+	schemaFormatAuto      = "auto"
+	schemaFormatIngestion = "ingestion"
+	schemaFormatNew       = "new"
+	schemaFormatOld       = "old"
 )
+
+var payloadSchemaFormat = schemaFormatAuto
+
+func SetPayloadSchemaFormat(format string) {
+	format = strings.ToLower(strings.TrimSpace(format))
+	switch format {
+	case schemaFormatAuto, schemaFormatIngestion, schemaFormatNew, schemaFormatOld:
+		payloadSchemaFormat = format
+	default:
+		log.Printf("invalid MQTT_PAYLOAD_FORMAT=%q, falling back to %q", format, schemaFormatAuto)
+		payloadSchemaFormat = schemaFormatAuto
+	}
+	log.Printf("mqtt payload schema format: %s", payloadSchemaFormat)
+}
 
 // parseDeviceTopic parses device MQTT topic in one place.
 // Supported topics:
@@ -173,4 +192,91 @@ func verifyRawDataStructure(payload []byte) (*db.MQTTPayload, error) {
 	}
 
 	return &message, nil
+}
+
+func parseSensorDataFromSchema(rawData json.RawMessage) (db.SensorDeviceData, error) {
+	switch payloadSchemaFormat {
+	case schemaFormatIngestion:
+		log.Printf("parsing with ingestion schema format")
+		return parseIngestionSensorData(rawData)
+	case schemaFormatNew:
+		log.Printf("parsing with new schema format")
+		return parseNewSensorData(rawData)
+	case schemaFormatOld:
+		log.Printf("parsing with old schema format")
+		return parseOldSensorData(rawData)
+	default:
+		log.Printf("auto-detecting schema format")
+		if parsed, err := parseIngestionSensorData(rawData); err == nil {
+			log.Printf("auto-detected ingestion format")
+			return parsed, nil
+		}
+		log.Printf("ingestion format failed, trying new format")
+		if parsed, err := parseNewSensorData(rawData); err == nil {
+			log.Printf("auto-detected new format, parsed data: mode=%s v_rms=%f temp_c=%f", parsed.Mode, parsed.VRMS, parsed.TempC)
+			return parsed, nil
+		}
+		log.Printf("new format failed, trying old format")
+		if parsed, err := parseOldSensorData(rawData); err == nil {
+			log.Printf("auto-detected old format")
+			return parsed, nil
+		}
+		return db.SensorDeviceData{}, fmt.Errorf("unable to parse data payload using auto schema detection")
+	}
+}
+
+func parseIngestionSensorData(rawData json.RawMessage) (db.SensorDeviceData, error) {
+	var sensorData db.SensorDeviceData
+	if err := json.Unmarshal(rawData, &sensorData); err != nil {
+		return db.SensorDeviceData{}, err
+	}
+	if sensorData.Mode == "" || sensorData.Status == "" {
+		return db.SensorDeviceData{}, fmt.Errorf("missing required ingestion fields")
+	}
+	return sensorData, nil
+}
+
+func parseNewSensorData(rawData json.RawMessage) (db.SensorDeviceData, error) {
+	var newData db.NewTelemetryData
+	if err := json.Unmarshal(rawData, &newData); err != nil {
+		return db.SensorDeviceData{}, err
+	}
+	if newData.DeviceName == "" {
+		return db.SensorDeviceData{}, fmt.Errorf("missing device_name in new format payload")
+	}
+
+	vRMS := math.Sqrt((newData.VibrationX*newData.VibrationX + newData.VibrationY*newData.VibrationY) / 2.0)
+	mode, status := classifyHealth(vRMS, newData.TempMotor)
+
+	return db.SensorDeviceData{
+		Mode:    mode,
+		VRMS:    vRMS,
+		TempC:   newData.TempMotor,
+		PeakHz1: 0,
+		PeakHz2: 0,
+		PeakHz3: 0,
+		Status:  status,
+	}, nil
+}
+
+func parseOldSensorData(rawData json.RawMessage) (db.SensorDeviceData, error) {
+	var oldData db.OldTelemetryData
+	if err := json.Unmarshal(rawData, &oldData); err != nil {
+		return db.SensorDeviceData{}, err
+	}
+	if oldData.Mode == "" || oldData.Status == "" {
+		return db.SensorDeviceData{}, fmt.Errorf("missing required old-format fields")
+	}
+
+	return db.SensorDeviceData(oldData), nil
+}
+
+func classifyHealth(vRMS float64, tempC float64) (string, string) {
+	if vRMS >= 2.5 || tempC >= 85 {
+		return "critical", "critical"
+	}
+	if vRMS >= 1.5 || tempC >= 75 {
+		return "warning", "warn"
+	}
+	return "normal", "ok"
 }
