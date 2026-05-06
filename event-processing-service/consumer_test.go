@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,6 +78,80 @@ func TestHandleMessage_InsertsEvent(t *testing.T) {
 
 	if len(event.Payload) == 0 {
 		t.Fatal("payload was empty")
+	}
+}
+
+// TestCrossService_IngestionToEventProcessing verifies the ingestion → event-processing
+// boundary: bytes in the format ingestion publishes are written to the real test Kafka
+// topic, read back as a kafka.Message, and fed to handleMessage, which must persist
+// the event row to the events_test DB.
+func TestCrossService_IngestionToEventProcessing(t *testing.T) {
+	brokersCSV := os.Getenv("TEST_KAFKA_BROKERS")
+	if brokersCSV == "" {
+		t.Skip("TEST_KAFKA_BROKERS not set; skipping cross-service integration test")
+	}
+	gdb := openTestDB(t)
+	ctx := context.Background()
+
+	// Use a unique topic per run so parallel test runs don't interfere.
+	topic := fmt.Sprintf("cross-service-test-%d", time.Now().UnixNano())
+	brokers := strings.Split(brokersCSV, ",")
+
+	event := processor.SensorEvent{
+		TenantID: "t-cross",
+		DeviceID: "MTR-X1",
+		VRMS:     1.23,
+		TempC:    45.6,
+		PeakHz1:  60,
+		PeakHz2:  120,
+		PeakHz3:  240,
+		Status:   "nominal",
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("marshal sensor event: %v", err)
+	}
+
+	writer := &kafka.Writer{
+		Addr:                   kafka.TCP(brokers...),
+		Topic:                  topic,
+		AllowAutoTopicCreation: true,
+	}
+	defer writer.Close()
+
+	writeCtx, wCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer wCancel()
+	if err := writer.WriteMessages(writeCtx, kafka.Message{Value: payload}); err != nil {
+		t.Fatalf("write to kafka: %v", err)
+	}
+
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:   brokers,
+		Topic:     topic,
+		Partition: 0,
+	})
+	defer reader.Close()
+
+	readCtx, rCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer rCancel()
+	msg, err := reader.ReadMessage(readCtx)
+	if err != nil {
+		t.Fatalf("read from kafka: %v", err)
+	}
+
+	wm := noopWindowManager()
+	defer wm.Stop()
+
+	if err := handleMessage(ctx, gdb, wm, msg); err != nil {
+		t.Fatalf("handleMessage: %v", err)
+	}
+
+	var stored db.Event
+	if err := gdb.Where("tenant_id = ?", "t-cross").Last(&stored).Error; err != nil {
+		t.Fatalf("fetch event from DB: %v", err)
+	}
+	if len(stored.Payload) == 0 {
+		t.Fatal("stored payload was empty")
 	}
 }
 

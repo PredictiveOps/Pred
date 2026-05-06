@@ -44,7 +44,7 @@ func TestWindowManager_SingleDeviceFlushesAfterExpiry(t *testing.T) {
 	wm := NewWindowManager(100*time.Millisecond, rec.fn())
 	defer wm.Stop()
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		wm.Add(makeEvent("DEV-1", "tenant-a"))
 	}
 
@@ -71,7 +71,7 @@ func TestWindowManager_TwoDevicesFlushIndependently(t *testing.T) {
 	wm := NewWindowManager(100*time.Millisecond, rec.fn())
 	defer wm.Stop()
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		wm.Add(makeEvent("DEV-1", "tenant-a"))
 		wm.Add(makeEvent("DEV-2", "tenant-a"))
 	}
@@ -129,7 +129,7 @@ func TestWindowManager_EventsAfterStopAreDiscarded(t *testing.T) {
 	wm.Stop()
 
 	// Add events after the manager is stopped.
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		wm.Add(makeEvent("DEV-1", "tenant-a"))
 	}
 
