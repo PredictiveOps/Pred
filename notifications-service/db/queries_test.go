@@ -2,35 +2,15 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
-	"gorm.io/gorm"
-
 	"notifications-service/db"
+
+	"testutil"
 )
 
-func openTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("TEST_DATABASE_URL not set; skipping DB integration tests")
-	}
-	ctx := context.Background()
-	gdb, err := db.Open(ctx, url)
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
-	}
-	t.Cleanup(func() {
-		if sqlDB, err := gdb.DB(); err == nil {
-			sqlDB.Close()
-		}
-	})
-	return gdb
-}
-
 func TestInsertNotification(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	payload := []byte(`{"title":"hello","body":"world"}`)
@@ -55,7 +35,7 @@ func TestInsertNotification(t *testing.T) {
 }
 
 func TestInsertDelivery(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	notifID, err := db.InsertNotification(ctx, gdb, "tenant-2", "email", []byte(`{}`))
@@ -87,7 +67,7 @@ func TestInsertDelivery(t *testing.T) {
 }
 
 func TestUpdateDeliveryStatus(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	notifID, err := db.InsertNotification(ctx, gdb, "tenant-3", "push", []byte(`{}`))
@@ -129,7 +109,7 @@ func TestUpdateDeliveryStatus(t *testing.T) {
 }
 
 func TestGetNotifications(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	// Insert 3 notifications for tenant A (in order so created_at differs).
@@ -189,7 +169,7 @@ func TestGetNotifications(t *testing.T) {
 }
 
 func TestDeviceTokensForUsers(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	tokens := []db.DeviceToken{

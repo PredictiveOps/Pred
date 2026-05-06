@@ -3,11 +3,12 @@ package db
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 	"time"
 
 	"gorm.io/gorm"
+
+	"testutil"
 )
 
 // preClean deletes rows matching the condition before the test runs and again
@@ -18,27 +19,8 @@ func preClean(t *testing.T, gdb *gorm.DB, model any, where string, args ...any) 
 	t.Cleanup(func() { gdb.Where(where, args...).Delete(model) })
 }
 
-func openTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("TEST_DATABASE_URL not set; skipping db integration tests")
-	}
-	ctx := context.Background()
-	gdb, err := Open(ctx, url)
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
-	}
-	t.Cleanup(func() {
-		if sqlDB, err := gdb.DB(); err == nil {
-			sqlDB.Close()
-		}
-	})
-	return gdb
-}
-
 func TestInsertEvent_StoresPayload(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 
 	payload := map[string]any{"device_id": "DEV-01", "v_rms": 0.42}
@@ -77,7 +59,7 @@ func newPF(tenantID, assetID string, ts time.Time) *ProcessedFeatures {
 }
 
 func TestInsertProcessedFeatures(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 
 	pf := newPF("tenant-pf", "asset-a", time.Now())
@@ -90,7 +72,7 @@ func TestInsertProcessedFeatures(t *testing.T) {
 }
 
 func TestGetLatestProcessedFeatures_ReturnsNewest(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-latest"
 	assetID := "asset-latest"
@@ -116,7 +98,7 @@ func TestGetLatestProcessedFeatures_ReturnsNewest(t *testing.T) {
 }
 
 func TestGetProcessedFeaturesByAsset_TenantIsolation(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	assetID := "asset-isolated"
 
@@ -169,7 +151,7 @@ func newPrediction(tenantID, predictionID string) *Prediction {
 }
 
 func TestInsertPrediction_AndGetByID(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	preClean(t, gdb, &Prediction{}, "prediction_id = ?", "pred-001")
 
@@ -194,7 +176,7 @@ func TestInsertPrediction_AndGetByID(t *testing.T) {
 }
 
 func TestGetPredictionByID_WrongTenantReturnsError(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	preClean(t, gdb, &Prediction{}, "prediction_id = ?", "pred-002")
 
@@ -210,7 +192,7 @@ func TestGetPredictionByID_WrongTenantReturnsError(t *testing.T) {
 }
 
 func TestGetPendingPredictions_TenantScopedAndStatusFiltered(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-pending"
 	preClean(t, gdb, &Prediction{}, "prediction_id IN ?", []string{"pred-p1", "pred-p2", "pred-p3"})
@@ -252,7 +234,7 @@ func TestGetPendingPredictions_TenantScopedAndStatusFiltered(t *testing.T) {
 }
 
 func TestGetPendingPredictions_ExcludesReviewed(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-reviewed"
 	preClean(t, gdb, &Prediction{}, "prediction_id = ?", "pred-reviewed-1")
@@ -277,7 +259,7 @@ func TestGetPendingPredictions_ExcludesReviewed(t *testing.T) {
 }
 
 func TestUpdatePredictionStatus_TransitionsAndReviewedFlag(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-update"
 	preClean(t, gdb, &Prediction{}, "prediction_id = ?", "pred-upd-1")
@@ -330,7 +312,7 @@ func newReview(tenantID, reviewID, predictionID string, eligible bool) *Predicti
 }
 
 func TestInsertPredictionReview(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	preClean(t, gdb, &PredictionReview{}, "review_id = ?", "rv-001")
 
@@ -344,7 +326,7 @@ func TestInsertPredictionReview(t *testing.T) {
 }
 
 func TestGetReviewsByTenant_TenantIsolation(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	preClean(t, gdb, &PredictionReview{}, "review_id IN ?", []string{"rv-A-1", "rv-B-1"})
 
@@ -377,7 +359,7 @@ func TestGetReviewsByTenant_TenantIsolation(t *testing.T) {
 }
 
 func TestCountTrainingEligibleReviews(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-count"
 	preClean(t, gdb, &PredictionReview{}, "review_id IN ?", []string{"rv-cnt-1", "rv-cnt-2", "rv-cnt-3"})
@@ -413,7 +395,7 @@ func TestCountTrainingEligibleReviews(t *testing.T) {
 }
 
 func TestGetTrainingEligibleReviews_FiltersAndIsolates(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-eligible"
 	preClean(t, gdb, &PredictionReview{}, "review_id IN ?", []string{"rv-el-1", "rv-el-2", "rv-el-3", "rv-el-4"})
@@ -466,7 +448,7 @@ func TestGetTrainingEligibleReviews_FiltersAndIsolates(t *testing.T) {
 // ---- Step 8: RetrainingConfig + RetrainingRequest ----
 
 func TestGetRetrainingConfig_MissingReturnsNil(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	preClean(t, gdb, &RetrainingConfig{}, "tenant_id = ?", "tenant-cfg-missing")
 
@@ -480,7 +462,7 @@ func TestGetRetrainingConfig_MissingReturnsNil(t *testing.T) {
 }
 
 func TestUpsertRetrainingConfig_IdempotentUpdate(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-cfg-upsert"
 	preClean(t, gdb, &RetrainingConfig{}, "tenant_id = ?", tenantID)
@@ -529,7 +511,7 @@ func newRetrainingRequest(tenantID, requestID string) *RetrainingRequest {
 }
 
 func TestInsertRetrainingRequest_AndGetByID(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	preClean(t, gdb, &RetrainingRequest{}, "request_id = ?", "rr-001")
 
@@ -554,7 +536,7 @@ func TestInsertRetrainingRequest_AndGetByID(t *testing.T) {
 }
 
 func TestGetRetrainingRequestByID_WrongTenantReturnsError(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	preClean(t, gdb, &RetrainingRequest{}, "request_id = ?", "rr-002")
 
@@ -570,7 +552,7 @@ func TestGetRetrainingRequestByID_WrongTenantReturnsError(t *testing.T) {
 }
 
 func TestUpdateRetrainingRequestStatus_StateMachine(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-rr-sm"
 	preClean(t, gdb, &RetrainingRequest{}, "request_id = ?", "rr-sm-1")
@@ -609,7 +591,7 @@ func newModelVersion(tenantID, modelID, version string) *ModelVersion {
 }
 
 func TestInsertModelVersion_AndGetByVersion(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	preClean(t, gdb, &ModelVersion{}, "tenant_id = ? AND model_id = ?", "tenant-mv", "model-A")
 
@@ -634,7 +616,7 @@ func TestInsertModelVersion_AndGetByVersion(t *testing.T) {
 }
 
 func TestGetLatestModelVersion_ReturnsNewest(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-mv-latest"
 	modelID := "model-B"
@@ -656,7 +638,7 @@ func TestGetLatestModelVersion_ReturnsNewest(t *testing.T) {
 }
 
 func TestUpdateModelVersionStatus(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-mv-status"
 	modelID := "model-C"
@@ -681,7 +663,7 @@ func TestUpdateModelVersionStatus(t *testing.T) {
 }
 
 func TestGetModelVersionsByStatus(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-mv-by-status"
 	modelID := "model-D"
@@ -724,7 +706,7 @@ func TestGetModelVersionsByStatus(t *testing.T) {
 }
 
 func TestSetActiveModelVersion_AndGet(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, Open)
 	ctx := context.Background()
 	tenantID := "tenant-mv-active"
 	preClean(t, gdb, &ActiveModelVersion{}, "tenant_id = ?", tenantID)

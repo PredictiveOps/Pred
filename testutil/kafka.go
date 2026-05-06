@@ -2,6 +2,8 @@ package testutil
 
 import (
 	"context"
+	"encoding/json"
+	"testing"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -34,6 +36,16 @@ func ProduceMessage(brokers []string, topic, key string, value []byte) error {
 		Key:   []byte(key),
 		Value: value,
 	})
+}
+
+// MakeMessage marshals v to JSON and returns a kafka.Message with that value.
+func MakeMessage(t *testing.T, v any) kafka.Message {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal message: %v", err)
+	}
+	return kafka.Message{Value: b}
 }
 
 // ConsumeOne reads a single message from the topic and returns its value.

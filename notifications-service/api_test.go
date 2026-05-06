@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	"notifications-service/db"
+	"testutil"
 )
 
 func TestNotificationsHandler_MissingTenantID(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	handler := notificationsHandler(gdb)
 
 	req := httptest.NewRequest(http.MethodGet, "/notifications", nil)
@@ -24,7 +25,7 @@ func TestNotificationsHandler_MissingTenantID(t *testing.T) {
 }
 
 func TestNotificationsHandler_ValidTenant(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 
 	tenantID := "api-test-tenant"
 	for i := range 3 {
@@ -64,7 +65,7 @@ func TestNotificationsHandler_ValidTenant(t *testing.T) {
 }
 
 func TestNotificationsHandler_LimitClamped(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 
 	tenantID := "api-test-limit"
 	for range 5 {

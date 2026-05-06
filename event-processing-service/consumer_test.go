@@ -10,10 +10,11 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
-	"gorm.io/gorm"
 
 	"event-processing-service/db"
 	"event-processing-service/processor"
+
+	"testutil"
 )
 
 // noopWindowManager returns a WindowManager whose flush callback does nothing.
@@ -22,36 +23,8 @@ func noopWindowManager() *processor.WindowManager {
 	return processor.NewWindowManager(5*time.Second, func(_, _ string, _ []processor.SensorEvent) {})
 }
 
-func openTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("TEST_DATABASE_URL not set; skipping consumer integration tests")
-	}
-	ctx := context.Background()
-	gdb, err := db.Open(ctx, url)
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
-	}
-	t.Cleanup(func() {
-		if sqlDB, err := gdb.DB(); err == nil {
-			sqlDB.Close()
-		}
-	})
-	return gdb
-}
-
-func makeMessage(t *testing.T, v any) kafka.Message {
-	t.Helper()
-	b, err := json.Marshal(v)
-	if err != nil {
-		t.Fatalf("marshal message: %v", err)
-	}
-	return kafka.Message{Value: b}
-}
-
 func TestHandleMessage_InsertsEvent(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 	wm := noopWindowManager()
 	defer wm.Stop()
@@ -67,7 +40,7 @@ func TestHandleMessage_InsertsEvent(t *testing.T) {
 		"status":    "nominal",
 	}
 
-	if err := handleMessage(ctx, gdb, wm, makeMessage(t, body)); err != nil {
+	if err := handleMessage(ctx, gdb, wm, testutil.MakeMessage(t, body)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -90,7 +63,7 @@ func TestCrossService_IngestionToEventProcessing(t *testing.T) {
 	if brokersCSV == "" {
 		t.Skip("TEST_KAFKA_BROKERS not set; skipping cross-service integration test")
 	}
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	// Use a unique topic per run so parallel test runs don't interfere.
@@ -168,7 +141,7 @@ func TestCrossService_IngestionToEventProcessing(t *testing.T) {
 }
 
 func TestHandleMessage_InvalidJSON(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 	wm := noopWindowManager()
 	defer wm.Stop()
