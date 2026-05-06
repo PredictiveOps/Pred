@@ -12,6 +12,15 @@ This guide explains how to run the Bearing Anomaly Prediction API and the workfl
 
 ## Quick Start
 
+### Simulation format toggle
+
+For raw MQTT simulation with switchable payload schemas, use `simulation/raw_telemetry_engine.py` with:
+
+- `--format new` for `device_name`, scalar vibration/temp fields
+- `--format old` for legacy fields (`device_id`, `asset_id`, vibration arrays, temperature_bearing/atmospheric)
+
+See `simulation/README.md` for commands and Kafka forwarding compatibility notes.
+
 ### 1. Start PostgreSQL
 
 From the project root directory:
