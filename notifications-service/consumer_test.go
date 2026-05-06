@@ -414,6 +414,141 @@ func TestHandleMessage_BroadcastsToCorrectTenant(t *testing.T) {
 	}
 }
 
+// TestCrossService_AlertEventFlow simulates the event-processing-service publishing
+// an AlertEvent to the notifications Kafka topic (high failure_probability anomaly
+// detected by the ML pipeline) and verifies that notifications-service processes it
+// end-to-end: correct DB rows written and WebSocket hub receives the broadcast.
+func TestCrossService_AlertEventFlow(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+
+	tenantID := "xs-tenant-1"
+
+	// Seed push tokens so the push variant creates deliveries.
+	tokens := []db.DeviceToken{
+		{TenantID: tenantID, UserID: "xs-u1", Token: "xs-tok-ios", Platform: "ios"},
+		{TenantID: tenantID, UserID: "xs-u2", Token: "xs-tok-android", Platform: "android"},
+	}
+	for i := range tokens {
+		if err := gdb.Create(&tokens[i]).Error; err != nil {
+			t.Fatalf("seed token: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		for _, tok := range tokens {
+			gdb.Delete(&db.DeviceToken{}, tok.ID)
+		}
+		var notifIDs []uint
+		gdb.Model(&db.Notification{}).Where("tenant_id = ?", tenantID).Pluck("id", &notifIDs)
+		if len(notifIDs) > 0 {
+			gdb.Where("notification_id IN ?", notifIDs).Delete(&db.NotificationDelivery{})
+		}
+		gdb.Where("tenant_id = ?", tenantID).Delete(&db.Notification{})
+	})
+
+	hub := NewHub()
+	wsClient := newTestClient(tenantID, 4)
+	wsClient.hub = hub
+	hub.Register(tenantID, wsClient)
+	t.Cleanup(func() { hub.Unregister(tenantID, wsClient) })
+
+	// This payload mirrors what the event-processing ML pipeline would publish:
+	// device_id + failure_probability above threshold triggers an alert.
+	t.Setenv("FAILURE_THRESHOLD", "0.8")
+	alertPayload := json.RawMessage(`{"device_id":"motor-42","failure_probability":0.93,"temp_c":87.2,"v_rms":3.1}`)
+
+	t.Run("email", func(t *testing.T) {
+		event := AlertEvent{
+			TenantID: tenantID,
+			Type:     "email",
+			Payload:  alertPayload,
+			Recipients: []Recipient{
+				{UserID: "xs-u1", Email: "u1@example.com"},
+				{UserID: "xs-u2", Email: "u2@example.com"},
+			},
+		}
+		if err := handleMessage(ctx, gdb, hub, makeMessage(t, event)); err != nil {
+			t.Fatalf("handleMessage: %v", err)
+		}
+
+		var notif db.Notification
+		if err := gdb.Where("tenant_id = ? AND type = ?", tenantID, "email").Last(&notif).Error; err != nil {
+			t.Fatalf("notification row: %v", err)
+		}
+
+		var deliveries []db.NotificationDelivery
+		gdb.Where("notification_id = ?", notif.ID).Find(&deliveries)
+		if len(deliveries) != 2 {
+			t.Fatalf("delivery count: got %d, want 2", len(deliveries))
+		}
+		for _, d := range deliveries {
+			if d.Status != "delivered" {
+				t.Errorf("delivery %d status: got %q, want delivered", d.ID, d.Status)
+			}
+		}
+
+		select {
+		case msg := <-wsClient.send:
+			var wsMsg WSMessage
+			if err := json.Unmarshal(msg, &wsMsg); err != nil {
+				t.Fatalf("unmarshal ws message: %v", err)
+			}
+			if wsMsg.Type != "new_notification" {
+				t.Errorf("ws message type: got %q, want new_notification", wsMsg.Type)
+			}
+		default:
+			t.Error("expected WebSocket broadcast, got none")
+		}
+	})
+
+	t.Run("push", func(t *testing.T) {
+		event := AlertEvent{
+			TenantID: tenantID,
+			Type:     "push",
+			Payload:  alertPayload,
+			Recipients: []Recipient{
+				{UserID: "xs-u1"},
+				{UserID: "xs-u2"},
+			},
+		}
+		if err := handleMessage(ctx, gdb, hub, makeMessage(t, event)); err != nil {
+			t.Fatalf("handleMessage: %v", err)
+		}
+
+		var notif db.Notification
+		if err := gdb.Where("tenant_id = ? AND type = ?", tenantID, "push").Last(&notif).Error; err != nil {
+			t.Fatalf("notification row: %v", err)
+		}
+
+		var deliveries []db.NotificationDelivery
+		gdb.Where("notification_id = ?", notif.ID).Find(&deliveries)
+		if len(deliveries) != 2 {
+			t.Fatalf("delivery count: got %d, want 2 (one per device token)", len(deliveries))
+		}
+		for _, d := range deliveries {
+			if d.Status != "delivered" {
+				t.Errorf("delivery %d status: got %q, want delivered", d.ID, d.Status)
+			}
+			if d.DeviceTokenID == nil {
+				t.Errorf("delivery %d: DeviceTokenID should be set for push", d.ID)
+			}
+		}
+
+		select {
+		case msg := <-wsClient.send:
+			var wsMsg WSMessage
+			if err := json.Unmarshal(msg, &wsMsg); err != nil {
+				t.Fatalf("unmarshal ws message: %v", err)
+			}
+			if wsMsg.Type != "new_notification" {
+				t.Errorf("ws message type: got %q, want new_notification", wsMsg.Type)
+			}
+		default:
+			t.Error("expected WebSocket broadcast, got none")
+		}
+	})
+}
+
 func TestFailureThreshold(t *testing.T) {
 	cases := []struct {
 		env  string

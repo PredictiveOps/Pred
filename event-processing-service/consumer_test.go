@@ -112,10 +112,22 @@ func TestCrossService_IngestionToEventProcessing(t *testing.T) {
 		t.Fatalf("marshal sensor event: %v", err)
 	}
 
+	conn, err := kafka.Dial("tcp", brokers[0])
+	if err != nil {
+		t.Fatalf("kafka dial: %v", err)
+	}
+	if err := conn.CreateTopics(kafka.TopicConfig{
+		Topic:             topic,
+		NumPartitions:     1,
+		ReplicationFactor: 1,
+	}); err != nil {
+		t.Fatalf("create topic: %v", err)
+	}
+	conn.Close()
+
 	writer := &kafka.Writer{
-		Addr:                   kafka.TCP(brokers...),
-		Topic:                  topic,
-		AllowAutoTopicCreation: true,
+		Addr:  kafka.TCP(brokers...),
+		Topic: topic,
 	}
 	defer writer.Close()
 
