@@ -1,4 +1,4 @@
-module testutil
+module github.com/PredictiveOps/Pred/testutil
 
 go 1.26.2
 
