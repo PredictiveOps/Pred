@@ -32,10 +32,8 @@ COPY prediction_api.py prediction_module.py kafka_consumer.py \
      timeseries_repository.py ./
 COPY results/ ./results/
 
-EXPOSE 8000
+EXPOSE 8003
 
-# Run the FastAPI app
-# CMD ["uvicorn", "prediction_api:app", "--host", "0.0.0.0", "--port", "8000"]
-CMD ["sh", "-c", "python kafka_consumer.py & uvicorn prediction_api:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "python kafka_consumer.py & uvicorn prediction_api:app --host 0.0.0.0 --port 8003"]
 
 

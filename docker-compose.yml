@@ -233,7 +233,7 @@ services:
   ml-service:
     build: ./ai-ml
     environment:
-      ML_PORT: ${ML_PORT:-8000}
+      ML_PORT: ${ML_PORT:-8003}
       ML_LOG_LEVEL: ${ML_LOG_LEVEL:-info}
       DATABASE_URL: ${ML_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/predictions}
       KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
@@ -241,7 +241,7 @@ services:
       ML_KAFKA_GROUP_ID: ${ML_KAFKA_GROUP_ID:-ml-service}
       ML_KAFKA_OFFSET_RESET: ${ML_KAFKA_OFFSET_RESET:-latest}
     ports:
-      - "${ML_PORT:-8000}:8000"
+      - "${ML_PORT:-8003}:8003"
     depends_on:
       postgres:
         condition: service_healthy
@@ -259,7 +259,7 @@ services:
           "--tries=1",
           "-O",
           "/dev/null",
-          "http://localhost:8000/health",
+          "http://localhost:8003/health",
         ]
       interval: 10s
       timeout: 5s
@@ -281,6 +281,15 @@ services:
       - ingestion-service
       - event-processing-service
       - keycloak
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - pred-network
+    restart: on-failure
 
   kong-jwks-sync:
     build:
@@ -292,8 +301,13 @@ services:
     volumes:
       - ./kong/kong.yml:/etc/kong/kong.yml:ro
     depends_on:
-      - kong
-      - keycloak
+      kong:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    networks:
+      - pred-network
+    restart: on-failure
 
 volumes:
   postgres_data:
