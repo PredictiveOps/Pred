@@ -5,7 +5,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
-      POSTGRES_MULTIPLE_DATABASES: ingestion_sim
+      POSTGRES_MULTIPLE_DATABASES: ingestion_sim,events_sim
     volumes:
       - ./postgres/init:/docker-entrypoint-initdb.d
       - postgres_sim_data:/var/lib/postgresql
@@ -106,6 +106,24 @@ services:
       mosquitto:
         condition: service_healthy
       redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  event-processing-service:
+    build:
+      context: ./event-processing-service
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres-sim:5432/events_sim
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC=sensor_data
+      - KAFKA_GROUP_ID=event-processing-service-sim
+      - HTTP_PORT=8081
+      - ML_FEATURES_TOPIC=ml-features
+      - WINDOW_DURATION_SECONDS=5
+    depends_on:
+      postgres-sim:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     restart: unless-stopped
 
