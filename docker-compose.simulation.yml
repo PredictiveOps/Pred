@@ -28,6 +28,12 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -67,10 +73,11 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres-sim:5432/ingestion_sim
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_TOPIC=sensor_data
-      - MQTT_BROKER=tcp://mosquitto:1883
+      - MQTT_BROKER=ssl://mosquitto:8883
       - MQTT_CLIENT_ID=ingestion-service-sim
       - MQTT_USERNAME=${MQTT_INGESTION_USERNAME:-pred-ingestion}
       - MQTT_PASSWORD=${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
+      - MQTT_CA_CERT=/mosquitto/certs/ca.crt
       - MQTT_TOPIC=devices/+/data
       - MQTT_DEVICE_REGISTRATION_TOPIC=devices/+/registration
       - MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC=devices/%d/registration/response
@@ -79,11 +86,13 @@ services:
       - REDIS_DB=0
       - REDIS_PUBKEY_TTL=30m
       - REDIS_NONCE_TTL=60s
+    volumes:
+      - ./mosquitto/certs:/mosquitto/certs:ro
     depends_on:
       postgres-sim:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
       mosquitto:
         condition: service_healthy
       redis:
@@ -96,7 +105,7 @@ services:
     environment:
       - INGESTION_HTTP_URL=http://ingestion-service:8003
       - MQTT_BROKER_HOST=mosquitto
-      - MQTT_BROKER_PORT=1883
+      - MQTT_BROKER_PORT=8883
       - MQTT_DEVICE_USERNAME=${MQTT_DEVICE_USERNAME:-pred-device}
       - MQTT_DEVICE_PASSWORD=${MQTT_DEVICE_PASSWORD:-dev-device-password}
       - TENANT_ID=1
