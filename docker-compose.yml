@@ -49,6 +49,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - pred-network
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -90,6 +92,9 @@ services:
       MQTT_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
       MQTT_PASSWORD: ${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
       MQTT_CA_CERT: ${MQTT_CA_CERT:-/mosquitto/certs/ca.crt}
+      REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
+      MQTT_DEVICE_REGISTRATION_TOPIC: ${MQTT_DEVICE_REGISTRATION_TOPIC:-devices/+/registration}
+      MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC: ${MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC:-devices/%d/registration/response}
     ports:
       - "${INGESTION_PORT:-8081}:8081"
     depends_on:
@@ -97,6 +102,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+      redis:
+        condition: service_healthy
       # mosquitto:
       #   condition: service_healthy
     volumes:
