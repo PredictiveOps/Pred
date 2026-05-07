@@ -26,8 +26,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /root/.local /root/.local
 
 # Copy application code and model artifacts
-# COPY prediction_api.py prediction_module.py ./
-COPY prediction_api.py prediction_module.py kafka_consumer.py ./
+COPY prediction_api.py prediction_module.py kafka_consumer.py \
+     db_models.py prediction_service.py review_service.py \
+     retraining_service.py model_version_service.py \
+     timeseries_repository.py ./
 COPY results/ ./results/
 
 EXPOSE 8000
