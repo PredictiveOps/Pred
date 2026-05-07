@@ -222,12 +222,18 @@ services:
     environment:
       ML_PORT: ${ML_PORT:-8000}
       ML_LOG_LEVEL: ${ML_LOG_LEVEL:-info}
+      DATABASE_URL: ${ML_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/predictions}
       KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
       ML_FEATURES_TOPIC: ${ML_FEATURES_TOPIC:-ml-features}
       ML_KAFKA_GROUP_ID: ${ML_KAFKA_GROUP_ID:-ml-service}
       ML_KAFKA_OFFSET_RESET: ${ML_KAFKA_OFFSET_RESET:-latest}
     ports:
       - "${ML_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
     networks:
       - pred-network
     restart: on-failure
