@@ -98,7 +98,7 @@ make test-down
 To simulate the whole system (for testing or demoing purposes), run:
 
 ```sh
-docker compose -f docker-compose.simulation.yml -p pred-simulation up
+make simulate
 ```
 
 ## Services

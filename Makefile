@@ -39,3 +39,10 @@ clean-test:
 	@for svc in notifications-service event-processing-service ingestion-service; do \
 	  rm -f $$svc/coverage.out; \
 	done
+
+simulate-cleanup:
+	docker compose -f docker-compose.simulation.yml -p pred-simulation down -v
+
+simulate:
+	$(MAKE) simulate-cleanup
+	docker compose -f docker-compose.simulation.yml -p pred-simulation up --build
