@@ -34,7 +34,7 @@ services:
     ports:
       - "19092:9092"
     healthcheck:
-      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:29092", "--list"]
       interval: 2s
       timeout: 5s
       retries: 30
