@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"ingestion-service/db"
 	"testing"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -249,4 +250,41 @@ func TestKafkaProducer_IngestionHandler(t *testing.T) {
 	if receivedPayload.Status != sensorData.Status {
 		t.Errorf("Expected Status %s, got %s", sensorData.Status, receivedPayload.Status)
 	}
+}
+
+// --- HandleMQTTDeviceRegistrationWithTemplate ---
+
+func TestHandleMQTTDeviceRegistration_InvalidJSON(t *testing.T) {
+	msg := &fakeMQTTMessage{
+		topic:   "devices/42/registration",
+		payload: []byte("not-valid-json"),
+	}
+	// Should log and return without panicking; client is nil because we don't reach Publish.
+	HandleMQTTDeviceRegistrationWithTemplate(nil, msg, "")
+}
+
+func TestHandleMQTTDeviceRegistration_MissingPublicKey(t *testing.T) {
+	payload, _ := json.Marshal(db.DeviceRegistrationRequest{PublicKey: ""})
+	msg := &fakeMQTTMessage{
+		topic:   "devices/42/registration",
+		payload: payload,
+	}
+	HandleMQTTDeviceRegistrationWithTemplate(nil, msg, "")
+}
+
+func TestHandleMQTTDeviceRegistration_WrongTopicKind(t *testing.T) {
+	payload, _ := json.Marshal(db.DeviceRegistrationRequest{PublicKey: "somekey"})
+	msg := &fakeMQTTMessage{
+		topic:   "devices/42/data", // data topic, not registration
+		payload: payload,
+	}
+	HandleMQTTDeviceRegistrationWithTemplate(nil, msg, "")
+}
+
+func TestHandleMQTTMessage_RegistrationTopicDoesNotPanic(t *testing.T) {
+	// Payload has no public_key so the goroutine returns before touching the DB.
+	msg := &fakeMQTTMessage{topic: "devices/42/registration", payload: []byte(`{}`)}
+	HandleMQTTMessage(nil, msg)
+	// Give the goroutine a moment to finish so it doesn't race with later tests.
+	time.Sleep(50 * time.Millisecond)
 }
