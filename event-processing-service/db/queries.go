@@ -3,9 +3,9 @@ package db
 import (
 	"context"
 
-	"gorm.io/gorm/clause"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func InsertEvent(ctx context.Context, gdb *gorm.DB, tenantID string, payload []byte) (int64, error) {

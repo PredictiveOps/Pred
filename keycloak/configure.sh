@@ -57,7 +57,7 @@ fi
 TENANT_SCOPE_ID=$("$KCADM" get client-scopes -r "$KC_REALM" \
   --query 'first=0' --query 'max=200' \
   --fields id,name --format csv --noquotes 2>/dev/null \
-  | awk -F, '$2 == "tenant" { print $1 }' || true)
+  | grep ',tenant$' | cut -d, -f1 || true)
 
 if [ -z "${TENANT_SCOPE_ID:-}" ]; then
   log "creating client scope 'tenant'"
