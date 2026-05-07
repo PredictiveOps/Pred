@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import random
+import ssl
 import threading
 import time
 import uuid
@@ -48,6 +49,7 @@ MQTT_PASSWORD = os.getenv("MQTT_DEVICE_PASSWORD", "dev-device-password")
 TENANT_ID = int(os.getenv("TENANT_ID", "1"))
 SEND_INTERVAL_MIN = float(os.getenv("SEND_INTERVAL_MIN", "5"))
 SEND_INTERVAL_MAX = float(os.getenv("SEND_INTERVAL_MAX", "30"))
+MQTT_CA_CERT = os.getenv("MQTT_CA_CERT", "")
 
 # Three device profiles with distinct sensor characteristics.
 # Device 2 runs hot with vibration to exercise warning/error paths.
@@ -225,6 +227,10 @@ class DeviceSimulator:
 
         self._client = mqtt.Client(client_id=str(self.device_id), clean_session=True)
         self._client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+        if MQTT_CA_CERT:
+            self._client.tls_set(ca_certs=MQTT_CA_CERT, tls_version=ssl.PROTOCOL_TLS_CLIENT)
+            # Cert is issued for localhost; skip hostname check in simulation.
+            self._client.tls_insecure_set(True)
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
         self._client.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT, keepalive=60)

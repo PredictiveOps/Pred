@@ -108,9 +108,12 @@ services:
       - MQTT_BROKER_PORT=8883
       - MQTT_DEVICE_USERNAME=${MQTT_DEVICE_USERNAME:-pred-device}
       - MQTT_DEVICE_PASSWORD=${MQTT_DEVICE_PASSWORD:-dev-device-password}
+      - MQTT_CA_CERT=/mosquitto/certs/ca.crt
       - TENANT_ID=1
       - SEND_INTERVAL_MIN=5
       - SEND_INTERVAL_MAX=30
+    volumes:
+      - ./mosquitto/certs:/mosquitto/certs:ro
     depends_on:
       - ingestion-service
     restart: unless-stopped
