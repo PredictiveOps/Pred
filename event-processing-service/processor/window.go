@@ -8,7 +8,7 @@ import (
 
 // FlushFunc is called with all readings collected during a closed window.
 // It is always invoked in its own goroutine so it never blocks the Kafka consumer.
-type FlushFunc func(tenantID, deviceID string, readings []SensorEvent)
+type FlushFunc func(tenantID string, deviceID uint, readings []SensorEvent)
 
 // windowBuffer holds readings for a single device's current open window.
 type windowBuffer struct {
@@ -21,7 +21,7 @@ type windowBuffer struct {
 // When a window closes, FlushFunc is called with the accumulated readings.
 type WindowManager struct {
 	mu       sync.Mutex
-	windows  map[string]*windowBuffer // keyed by device_id
+	windows  map[uint]*windowBuffer // keyed by device_id
 	duration time.Duration
 	onFlush  FlushFunc
 	stop     chan struct{}
@@ -32,7 +32,7 @@ type WindowManager struct {
 // Call Stop() during graceful shutdown to flush remaining open windows.
 func NewWindowManager(duration time.Duration, onFlush FlushFunc) *WindowManager {
 	wm := &WindowManager{
-		windows:  make(map[string]*windowBuffer),
+		windows:  make(map[uint]*windowBuffer),
 		duration: duration,
 		onFlush:  onFlush,
 		stop:     make(chan struct{}),
@@ -89,7 +89,7 @@ func (wm *WindowManager) Stop() {
 			wm.dispatchFlush(deviceID, buf)
 		}
 	}
-	wm.windows = make(map[string]*windowBuffer)
+	wm.windows = make(map[uint]*windowBuffer)
 }
 
 // flusher runs in a background goroutine and ticks every second to close
@@ -124,7 +124,7 @@ func (wm *WindowManager) flushExpired() {
 
 // dispatchFlush copies the readings and calls onFlush in a new goroutine.
 // Must be called with wm.mu held.
-func (wm *WindowManager) dispatchFlush(deviceID string, buf *windowBuffer) {
+func (wm *WindowManager) dispatchFlush(deviceID uint, buf *windowBuffer) {
 	if len(buf.readings) == 0 {
 		return
 	}
@@ -133,7 +133,7 @@ func (wm *WindowManager) dispatchFlush(deviceID string, buf *windowBuffer) {
 	copy(snapshot, buf.readings)
 	tenantID := buf.tenantID
 
-	log.Printf("[window] flushing device=%q tenant=%q readings=%d", deviceID, tenantID, len(snapshot))
+	log.Printf("[window] flushing device=%d tenant=%q readings=%d", deviceID, tenantID, len(snapshot))
 
 	go wm.onFlush(tenantID, deviceID, snapshot)
 }

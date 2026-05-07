@@ -3,7 +3,7 @@ package processor
 // SensorEvent is the payload published to Kafka by the Ingestion Service.
 // It represents a single reading from an edge device.
 type SensorEvent struct {
-	DeviceID string  `json:"device_id"`
+	DeviceID uint    `json:"device_id"`
 	TenantID string  `json:"tenant_id"`
 	Mode     string  `json:"mode"`
 	VRMS     float64 `json:"v_rms"`

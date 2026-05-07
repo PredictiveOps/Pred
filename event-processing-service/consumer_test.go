@@ -17,7 +17,7 @@ import (
 // noopWindowManager returns a WindowManager whose flush callback does nothing.
 // Used in integration tests that only care about DB insertion, not ML forwarding.
 func noopWindowManager() *processor.WindowManager {
-	return processor.NewWindowManager(5*time.Second, func(_, _ string, _ []processor.SensorEvent) {})
+	return processor.NewWindowManager(5*time.Second, func(_ string, _ uint, _ []processor.SensorEvent) {})
 }
 
 func openTestDB(t *testing.T) *gorm.DB {
@@ -56,7 +56,7 @@ func TestHandleMessage_InsertsEvent(t *testing.T) {
 
 	body := map[string]any{
 		"tenant_id": "t-events",
-		"device_id": "MTR-01",
+		"device_id": 1,
 		"v_rms":     0.45,
 		"temp_c":    52.3,
 		"peak_hz_1": 120,
