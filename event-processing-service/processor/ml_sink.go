@@ -23,8 +23,9 @@ type KafkaFeatureSink struct {
 func NewKafkaFeatureSink(brokers []string, topic string) *KafkaFeatureSink {
 	return &KafkaFeatureSink{
 		writer: &kafka.Writer{
-			Addr:  kafka.TCP(brokers...),
-			Topic: topic,
+			Addr:                   kafka.TCP(brokers...),
+			Topic:                  topic,
+			AllowAutoTopicCreation: true,
 		},
 	}
 }
