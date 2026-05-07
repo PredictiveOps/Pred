@@ -15,7 +15,7 @@ type recordingFlush struct {
 
 type flushCall struct {
 	tenantID string
-	deviceID string
+	deviceID uint
 	count    int
 }
 
@@ -24,7 +24,7 @@ func newRecordingFlush(buf int) *recordingFlush {
 }
 
 func (r *recordingFlush) fn() FlushFunc {
-	return func(tenantID, deviceID string, readings []SensorEvent) {
+	return func(tenantID string, deviceID uint, readings []SensorEvent) {
 		call := flushCall{tenantID: tenantID, deviceID: deviceID, count: len(readings)}
 		r.mu.Lock()
 		r.calls = append(r.calls, call)
@@ -33,7 +33,7 @@ func (r *recordingFlush) fn() FlushFunc {
 	}
 }
 
-func makeEvent(deviceID, tenantID string) SensorEvent {
+func makeEvent(deviceID uint, tenantID string) SensorEvent {
 	return SensorEvent{DeviceID: deviceID, TenantID: tenantID, VRMS: 0.5, TempC: 50}
 }
 
@@ -45,13 +45,13 @@ func TestWindowManager_SingleDeviceFlushesAfterExpiry(t *testing.T) {
 	defer wm.Stop()
 
 	for range 5 {
-		wm.Add(makeEvent("DEV-1", "tenant-a"))
+		wm.Add(makeEvent(1, "tenant-a"))
 	}
 
 	select {
 	case call := <-rec.ch:
-		if call.deviceID != "DEV-1" {
-			t.Errorf("deviceID = %q, want DEV-1", call.deviceID)
+		if call.deviceID != 1 {
+			t.Errorf("deviceID = %d, want 1", call.deviceID)
 		}
 		if call.tenantID != "tenant-a" {
 			t.Errorf("tenantID = %q, want tenant-a", call.tenantID)
@@ -72,11 +72,11 @@ func TestWindowManager_TwoDevicesFlushIndependently(t *testing.T) {
 	defer wm.Stop()
 
 	for range 3 {
-		wm.Add(makeEvent("DEV-1", "tenant-a"))
-		wm.Add(makeEvent("DEV-2", "tenant-a"))
+		wm.Add(makeEvent(1, "tenant-a"))
+		wm.Add(makeEvent(2, "tenant-a"))
 	}
 
-	seen := map[string]int{}
+	seen := map[uint]int{}
 	timeout := time.After(2 * time.Second)
 	for len(seen) < 2 {
 		select {
@@ -87,9 +87,9 @@ func TestWindowManager_TwoDevicesFlushIndependently(t *testing.T) {
 		}
 	}
 
-	for _, dev := range []string{"DEV-1", "DEV-2"} {
+	for _, dev := range []uint{1, 2} {
 		if seen[dev] != 3 {
-			t.Errorf("device %q flushed %d readings, want 3", dev, seen[dev])
+			t.Errorf("device %d flushed %d readings, want 3", dev, seen[dev])
 		}
 	}
 }
@@ -101,16 +101,16 @@ func TestWindowManager_StopFlushesRemainingEvents(t *testing.T) {
 	// Use a very long window so the background flusher never fires before Stop.
 	wm := NewWindowManager(10*time.Second, rec.fn())
 
-	wm.Add(makeEvent("DEV-1", "tenant-a"))
-	wm.Add(makeEvent("DEV-1", "tenant-a"))
+	wm.Add(makeEvent(1, "tenant-a"))
+	wm.Add(makeEvent(1, "tenant-a"))
 
 	wm.Stop()
 
 	// Stop() dispatches flushes in goroutines; give them a moment to land.
 	select {
 	case call := <-rec.ch:
-		if call.deviceID != "DEV-1" {
-			t.Errorf("deviceID = %q, want DEV-1", call.deviceID)
+		if call.deviceID != 1 {
+			t.Errorf("deviceID = %d, want 1", call.deviceID)
 		}
 		if call.count != 2 {
 			t.Errorf("readings count = %d, want 2", call.count)
@@ -130,13 +130,13 @@ func TestWindowManager_EventsAfterStopAreDiscarded(t *testing.T) {
 
 	// Add events after the manager is stopped.
 	for range 5 {
-		wm.Add(makeEvent("DEV-1", "tenant-a"))
+		wm.Add(makeEvent(1, "tenant-a"))
 	}
 
 	// Wait longer than the original window duration; nothing should arrive.
 	select {
 	case call := <-rec.ch:
-		t.Errorf("unexpected flush after Stop(): device=%q count=%d", call.deviceID, call.count)
+		t.Errorf("unexpected flush after Stop(): device=%d count=%d", call.deviceID, call.count)
 	case <-time.After(400 * time.Millisecond):
 		// expected: no flush
 	}

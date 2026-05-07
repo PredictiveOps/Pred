@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/segmentio/kafka-go"
@@ -45,7 +46,7 @@ func (s *testKafkaFeatureSink) Send(ctx context.Context, payload MLRequest) erro
 	}
 
 	msg := kafka.Message{
-		Key:   []byte(payload.DeviceID),
+		Key:   []byte(strconv.FormatUint(uint64(payload.DeviceID), 10)),
 		Value: body,
 	}
 
@@ -69,7 +70,7 @@ func TestKafkaFeatureSink_Send_Success(t *testing.T) {
 
 	ctx := context.Background()
 	payload := MLRequest{
-		DeviceID: "device-123",
+		DeviceID: 123,
 		TenantID: "tenant-456",
 		Features: MLFeatures{
 			VibrationXMean:             1.5,
@@ -103,9 +104,9 @@ func TestKafkaFeatureSink_Send_Success(t *testing.T) {
 
 	msg := mockWriter.messages[0]
 
-	// Test key equals device_id
-	if string(msg.Key) != payload.DeviceID {
-		t.Errorf("Expected key %s, got %s", payload.DeviceID, string(msg.Key))
+	// Test key equals string representation of device_id
+	if string(msg.Key) != "123" {
+		t.Errorf("Expected key 123, got %s", string(msg.Key))
 	}
 
 	// Test topic (should be empty since we're using mock, but let's verify structure)
@@ -120,7 +121,7 @@ func TestKafkaFeatureSink_Send_Success(t *testing.T) {
 	}
 
 	if receivedPayload.DeviceID != payload.DeviceID {
-		t.Errorf("Expected DeviceID %s, got %s", payload.DeviceID, receivedPayload.DeviceID)
+		t.Errorf("Expected DeviceID %d, got %d", payload.DeviceID, receivedPayload.DeviceID)
 	}
 
 	if receivedPayload.TenantID != payload.TenantID {
@@ -148,7 +149,7 @@ func TestKafkaFeatureSink_Send_WriterError(t *testing.T) {
 
 	ctx := context.Background()
 	payload := MLRequest{
-		DeviceID: "device-123",
+		DeviceID: 123,
 		TenantID: "tenant-456",
 		Features: MLFeatures{
 			VibrationXMean: 1.5,
@@ -187,7 +188,7 @@ func TestKafkaFeatureSink_Send_MarshalError(t *testing.T) {
 	// the marshal path indirectly by creating a scenario where marshal might fail
 	// For now, we'll test the happy path and verify the error handling structure
 	payload := MLRequest{
-		DeviceID: "device-123",
+		DeviceID: 123,
 		TenantID: "tenant-456",
 		Features: MLFeatures{
 			VibrationXMean: 1.5,

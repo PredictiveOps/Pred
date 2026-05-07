@@ -86,7 +86,7 @@ func TestRoutes_GetPendingPredictions(t *testing.T) {
 		p := &db.Prediction{
 			PredictionID:    id,
 			TenantID:        tenantID,
-			DeviceID:        "DEV-01",
+			DeviceID:        1,
 			AssetID:         "asset-rt",
 			ModelName:       "test-model",
 			ModelVersion:    "v1",
@@ -176,7 +176,7 @@ func TestRoutes_GetReviewedPredictions(t *testing.T) {
 			ReviewID:           rv.reviewID,
 			TenantID:           rv.tenant,
 			PredictionID:       rv.predID,
-			DeviceID:           "DEV-01",
+			DeviceID:           1,
 			AssetID:            "asset-rt",
 			ModelPrediction:    "warning",
 			ReviewedLabel:      "normal",

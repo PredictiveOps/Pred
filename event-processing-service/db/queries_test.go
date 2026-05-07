@@ -50,7 +50,7 @@ func newPF(tenantID, assetID string, ts time.Time) *ProcessedFeatures {
 	raw, _ := json.Marshal(map[string]any{"rms": 1.0})
 	return &ProcessedFeatures{
 		TenantID:         tenantID,
-		DeviceID:         "DEV-01",
+		DeviceID:         1,
 		AssetID:          assetID,
 		Features:         raw,
 		FeatureVersion:   "v1",
@@ -139,7 +139,7 @@ func newPrediction(tenantID, predictionID string) *Prediction {
 	return &Prediction{
 		PredictionID:    predictionID,
 		TenantID:        tenantID,
-		DeviceID:        "DEV-01",
+		DeviceID:        1,
 		AssetID:         "asset-pred",
 		ModelName:       "test-model",
 		ModelVersion:    "v1",
@@ -301,7 +301,7 @@ func newReview(tenantID, reviewID, predictionID string, eligible bool) *Predicti
 		ReviewID:           reviewID,
 		TenantID:           tenantID,
 		PredictionID:       predictionID,
-		DeviceID:           "DEV-01",
+		DeviceID:           1,
 		AssetID:            "asset-review",
 		ModelPrediction:    "warning",
 		ReviewedLabel:      "normal",

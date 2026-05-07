@@ -17,7 +17,7 @@ func TestPipeline_WindowAggregatesAndSendsToML(t *testing.T) {
 	sink := &recordingSink{requests: requests}
 	windowDuration := 300 * time.Millisecond
 
-	wm := NewWindowManager(windowDuration, func(tenantID, deviceID string, readings []SensorEvent) {
+	wm := NewWindowManager(windowDuration, func(tenantID string, deviceID uint, readings []SensorEvent) {
 		features := Compute(readings)
 		payload := MLRequest{DeviceID: deviceID, TenantID: tenantID, Features: features}
 		if err := sink.Send(context.Background(), payload); err != nil {
@@ -29,7 +29,7 @@ func TestPipeline_WindowAggregatesAndSendsToML(t *testing.T) {
 	// --- 3. Push 10 readings for one device ---
 	for i := 0; i < 10; i++ {
 		wm.Add(SensorEvent{
-			DeviceID: "MTR-01",
+			DeviceID: 1,
 			TenantID: "factory-a",
 			VRMS:     0.45 + float64(i)*0.01,
 			TempC:    52.0 + float64(i)*0.1,
@@ -42,8 +42,8 @@ func TestPipeline_WindowAggregatesAndSendsToML(t *testing.T) {
 	// --- 4. Wait for the window to flush (window + flusher tick + margin) ---
 	select {
 	case payload := <-requests:
-		if payload.DeviceID != "MTR-01" {
-			t.Errorf("DeviceID = %q, want MTR-01", payload.DeviceID)
+		if payload.DeviceID != 1 {
+			t.Errorf("DeviceID = %d, want 1", payload.DeviceID)
 		}
 		if payload.TenantID != "factory-a" {
 			t.Errorf("TenantID = %q, want factory-a", payload.TenantID)
@@ -66,7 +66,7 @@ func TestPipeline_WindowAggregatesAndSendsToML(t *testing.T) {
 			t.Errorf("TemperatureBearingMean = %v, expected ~52.45", tMean)
 		}
 
-		t.Logf("✓ ML request enqueued: device=%s features=%d rms=%.4f temp=%.4f",
+		t.Logf("✓ ML request enqueued: device=%d features=%d rms=%.4f temp=%.4f",
 			payload.DeviceID, len(slice), rRMS, tMean)
 
 	case <-time.After(3 * time.Second):
@@ -86,26 +86,26 @@ func (s *recordingSink) Send(_ context.Context, payload MLRequest) error {
 // TestPipeline_MultipleDevicesFlushedIndependently verifies that two devices
 // each get their own independent window and flush independently.
 func TestPipeline_MultipleDevicesFlushedIndependently(t *testing.T) {
-	flushed := make(chan string, 10)
+	flushed := make(chan uint, 10)
 
-	wm := NewWindowManager(300*time.Millisecond, func(tenantID, deviceID string, readings []SensorEvent) {
+	wm := NewWindowManager(300*time.Millisecond, func(tenantID string, deviceID uint, readings []SensorEvent) {
 		flushed <- deviceID
 	})
 	defer wm.Stop()
 
 	// Feed events for two different devices.
 	for i := 0; i < 5; i++ {
-		wm.Add(SensorEvent{DeviceID: "MTR-01", TenantID: "t", VRMS: 0.4, TempC: 50})
-		wm.Add(SensorEvent{DeviceID: "MTR-02", TenantID: "t", VRMS: 0.6, TempC: 60})
+		wm.Add(SensorEvent{DeviceID: 1, TenantID: "t", VRMS: 0.4, TempC: 50})
+		wm.Add(SensorEvent{DeviceID: 2, TenantID: "t", VRMS: 0.6, TempC: 60})
 	}
 
-	seen := map[string]bool{}
+	seen := map[uint]bool{}
 	timeout := time.After(3 * time.Second)
 	for len(seen) < 2 {
 		select {
 		case id := <-flushed:
 			seen[id] = true
-			t.Logf("✓ flushed device %q", id)
+			t.Logf("✓ flushed device %d", id)
 		case <-timeout:
 			t.Fatalf("timed out; only flushed: %v", seen)
 		}

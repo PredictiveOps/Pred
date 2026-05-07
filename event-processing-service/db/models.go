@@ -17,7 +17,7 @@ type Event struct {
 type ProcessedFeatures struct {
 	ID               int64          `gorm:"primaryKey"`
 	TenantID         string         `gorm:"not null;index:processed_features_tenant_asset,priority:1"`
-	DeviceID         string         `gorm:"not null;index:processed_features_tenant_asset,priority:2"`
+	DeviceID         uint           `gorm:"not null;index:processed_features_tenant_asset,priority:2"`
 	AssetID          string         `gorm:"not null;index:processed_features_tenant_asset,priority:3"`
 	Features         datatypes.JSON `gorm:"type:jsonb;not null"` // {rms, kurtosis, crest_factor, spectral_energy, temperature, ...}
 	FeatureVersion   string         `gorm:"default:v1"`          // schema version for features
@@ -30,7 +30,7 @@ type Prediction struct {
 	ID              int64     `gorm:"primaryKey" json:"id"`
 	PredictionID    string    `gorm:"uniqueIndex;not null" json:"prediction_id"` // auto-generated unique ID
 	TenantID        string    `gorm:"not null;index:predictions_tenant" json:"tenant_id"`
-	DeviceID        string    `gorm:"not null;index:predictions_asset,priority:1" json:"device_id"`
+	DeviceID        uint      `gorm:"not null;index:predictions_asset,priority:1" json:"device_id"`
 	AssetID         string    `gorm:"not null;index:predictions_asset,priority:2" json:"asset_id"`
 	ModelName       string    `gorm:"not null" json:"model_name"`
 	ModelVersion    string    `gorm:"not null" json:"model_version"`
@@ -48,7 +48,7 @@ type PredictionReview struct {
 	ReviewID           string    `gorm:"uniqueIndex;not null" json:"review_id"` // auto-generated unique ID
 	TenantID           string    `gorm:"not null;index:reviews_tenant" json:"tenant_id"`
 	PredictionID       string    `gorm:"not null;uniqueIndex:reviews_prediction,priority:1" json:"prediction_id"`
-	DeviceID           string    `gorm:"not null" json:"device_id"`
+	DeviceID           uint      `gorm:"not null" json:"device_id"`
 	AssetID            string    `gorm:"not null" json:"asset_id"`
 	ModelPrediction    string    `gorm:"not null" json:"model_prediction"` // original model prediction
 	ReviewedLabel      string    `gorm:"not null" json:"reviewed_label"`   // corrected label by user (normal, warning, critical)
