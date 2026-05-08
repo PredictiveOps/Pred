@@ -11,6 +11,8 @@ import (
 
 	"ingestion-service/db"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -238,4 +240,8 @@ func buildRegistrationResponseTopic(requestTopic, template string) string {
 	}
 
 	return fmt.Sprintf("devices/%d/registration/response", deviceID)
+}
+
+func PrometheusHandler(_ *gorm.DB) gin.HandlerFunc {
+	return gin.WrapH(promhttp.Handler())
 }
