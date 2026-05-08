@@ -151,9 +151,12 @@ services:
       - pred-network
 
   web-frontend:
-    build: ./web-frontend
+    build:
+      context: ./web-frontend
+      target: builder
+    command: npm run dev
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-32-character-secret-key-here-change-in-production}
       KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
@@ -168,6 +171,17 @@ services:
     networks:
       - pred-network
     restart: on-failure
+    volumes:
+      - ./web-frontend/app:/app/app
+      - ./web-frontend/components:/app/components
+      - ./web-frontend/lib:/app/lib
+      - ./web-frontend/hooks:/app/hooks
+      - ./web-frontend/public:/app/public
+      - ./web-frontend/next.config.ts:/app/next.config.ts
+    develop:
+      watch:
+        - action: rebuild
+          path: ./web-frontend/package.json
     healthcheck:
       test:
         [
