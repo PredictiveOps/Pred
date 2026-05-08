@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -205,7 +205,6 @@ class HealthResponse(BaseModel):
 
 
 def get_db() -> Session:
-    """Get database session."""
     return get_session(engine)
 
 
@@ -242,10 +241,8 @@ def health():
 
 
 @app.post("/processed-features", response_model=ProcessedFeaturesResponse)
-def save_processed_features(request: ProcessedFeaturesRequest, db: Session = None):
+def save_processed_features(request: ProcessedFeaturesRequest, db: Session = Depends(get_db)):
     """Save processed sensor features to time-series storage."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         repo = services["timeseries"]
@@ -277,11 +274,9 @@ def save_processed_features(request: ProcessedFeaturesRequest, db: Session = Non
 def get_latest_features(
     asset_id: str,
     tenant_id: str = Query(...),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Get latest processed features for an asset."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         repo = services["timeseries"]
@@ -312,13 +307,11 @@ def get_latest_features(
 
 
 @app.post("/predict", response_model=PredictionDetailResponse)
-def predict(request: PredictRequest, db: Session = None):
+def predict(request: PredictRequest, db: Session = Depends(get_db)):
     """
     Run prediction on latest features for an asset.
     Prediction is saved as pending_review status.
     """
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         timeseries_repo = services["timeseries"]
@@ -373,11 +366,9 @@ def predict(request: PredictRequest, db: Session = None):
 def get_pending_predictions(
     tenant_id: str = Query(...),
     limit: int = Query(50, ge=1, le=1000),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Get predictions pending human review."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         pred_service = services["prediction"]
@@ -407,11 +398,9 @@ def get_pending_predictions(
 def get_prediction(
     prediction_id: str,
     tenant_id: str = Query(...),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Get a specific prediction by ID."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         pred_service = services["prediction"]
@@ -449,14 +438,12 @@ def review_prediction(
     prediction_id: str,
     request: ReviewPredictionRequest,
     tenant_id: str = Query(...),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """
     Review a prediction and store human correction.
     Updates prediction status to reviewed.
     """
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         pred_service = services["prediction"]
@@ -511,11 +498,9 @@ def review_prediction(
 def get_reviews(
     tenant_id: str = Query(...),
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Get all reviews for a tenant."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         review_service = services["review"]
@@ -544,11 +529,9 @@ def get_reviews(
 @app.get("/reviews/training-eligible-count")
 def get_training_eligible_count(
     tenant_id: str = Query(...),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Get count of training-eligible reviews."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         review_service = services["review"]
@@ -567,11 +550,9 @@ def get_training_eligible_count(
 @app.get("/retraining/config", response_model=RetrainingConfigResponse)
 def get_retraining_config(
     tenant_id: str = Query(...),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Get retraining configuration for a tenant."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         retraining_service = services["retraining"]
@@ -597,13 +578,11 @@ def get_retraining_config(
 @app.put("/retraining/config", response_model=RetrainingConfigResponse)
 def set_retraining_config(
     tenant_id: str = Query(...),
-    request: RetrainingConfigRequest = None,
     updated_by: str = Query(...),
-    db: Session = None,
+    request: RetrainingConfigRequest = None,
+    db: Session = Depends(get_db),
 ):
     """Set or update retraining configuration."""
-    if db is None:
-        db = get_db()
     if request is None:
         request = RetrainingConfigRequest()
     try:
@@ -633,11 +612,9 @@ def set_retraining_config(
 @app.get("/retraining/eligibility", response_model=RetrainingEligibilityResponse)
 def check_retraining_eligibility(
     tenant_id: str = Query(...),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Check if model retraining is eligible."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         retraining_service = services["retraining"]
@@ -652,11 +629,9 @@ def check_retraining_eligibility(
 def create_retraining_request(
     tenant_id: str = Query(...),
     requested_by: str = Query(...),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Create a retraining request."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         retraining_service = services["retraining"]
@@ -685,11 +660,9 @@ def approve_retraining(
     request_id: str,
     tenant_id: str = Query(...),
     approved_by: str = Query(...),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Approve a retraining request."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         retraining_service = services["retraining"]
@@ -729,11 +702,9 @@ def get_model_versions(
     tenant_id: str = Query(...),
     status: Optional[str] = Query(None, description="Filter by deployment status"),
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Get model versions for a tenant."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         model_service = services["model_version"]
@@ -767,11 +738,9 @@ def approve_model_version(
     version: str,
     tenant_id: str = Query(...),
     approved_by: str = Query(...),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Approve a model version for deployment."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         model_service = services["model_version"]
@@ -802,11 +771,9 @@ def deploy_model_version(
     model_id: str,
     version: str,
     tenant_id: str = Query(...),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Deploy a model version (set as active)."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         model_service = services["model_version"]
@@ -835,11 +802,9 @@ def deploy_model_version(
 @app.get("/models/active")
 def get_active_model(
     tenant_id: str = Query(...),
-    db: Session = None,
+    db: Session = Depends(get_db),
 ):
     """Get the currently active model for a tenant."""
-    if db is None:
-        db = get_db()
     try:
         services = get_services(db)
         model_service = services["model_version"]
