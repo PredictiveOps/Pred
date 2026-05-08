@@ -15,9 +15,11 @@ import { usePathname } from "next/navigation";
 import {
 	Sidebar,
 	SidebarContent,
+	SidebarFooter,
 	SidebarHeader,
 	SidebarProvider,
 } from "@/components/ui/sidebar";
+import SidebarUserCard from "../sidebar-user-card";
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname();
@@ -77,6 +79,9 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
 						</button>
 					</div>
 				</SidebarContent>
+				<SidebarFooter className="border-t border-slate-700 p-3 bg-slate-900">
+					<SidebarUserCard />
+				</SidebarFooter>
 			</Sidebar>
 
 			<div className="flex-1 bg-slate-950 text-white min-h-screen">

@@ -41,9 +41,7 @@ export default function RootLayout({
 		>
 			<body className="min-h-full flex flex-col">
 				<AuthProvider>
-					<TooltipProvider>
-						{children}
-					</TooltipProvider>
+					<TooltipProvider>{children}</TooltipProvider>
 				</AuthProvider>
 			</body>
 		</html>
