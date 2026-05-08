@@ -74,9 +74,16 @@ jobs:
           cache: pip
           cache-dependency-path: "ai-ml/requirements.txt"
 
+      #   - name: Install dependencies
+      #     working-directory: ai-ml
+      #     run: pip install -r requirements.txt
+
       - name: Install dependencies
         working-directory: ai-ml
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
 
       - name: Run Python tests
         working-directory: ai-ml
