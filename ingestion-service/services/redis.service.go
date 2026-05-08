@@ -28,6 +28,11 @@ type RedisCache struct {
 	nonceTTL  time.Duration
 }
 
+// NewRedisCacheWithClient creates a RedisCache backed by the provided client.
+func NewRedisCacheWithClient(client RedisClient, pubKeyTTL, nonceTTL time.Duration) *RedisCache {
+	return &RedisCache{client: client, pubKeyTTL: pubKeyTTL, nonceTTL: nonceTTL}
+}
+
 func NewRedisCache(addr, password string, db int, pubKeyTTL, nonceTTL time.Duration) (*RedisCache, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     addr,
