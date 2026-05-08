@@ -8,6 +8,7 @@ DEVICE_ID="${1:-1}"
 FORMAT="${2:-new}"
 COUNT="${3:-100}"
 RATE="${4:-10}"
+VERBOSE="${5:-}"
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SIM_DIR="$PROJECT_ROOT/simulation"
@@ -64,6 +65,12 @@ echo "[4/4] Starting simulation..."
 echo ""
 cd "$SIM_DIR"
 
+if [ -n "$VERBOSE" ]; then
+    PROGRESS_INTERVAL=0
+else
+    PROGRESS_INTERVAL=10
+fi
+
 python3 raw_telemetry_engine.py \
     --device "$DEVICE_ID" \
     --format "$FORMAT" \
@@ -75,7 +82,8 @@ python3 raw_telemetry_engine.py \
     --count "$COUNT" \
     --username pred-device \
     --password dev-device-password \
-    --progress-interval 10
+    --progress-interval "$PROGRESS_INTERVAL" \
+    ${VERBOSE:+--verbose}
 
 echo ""
 echo "=== Simulation Complete ==="
