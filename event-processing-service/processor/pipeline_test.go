@@ -18,8 +18,8 @@ func TestPipeline_WindowAggregatesAndSendsToML(t *testing.T) {
 	windowDuration := 300 * time.Millisecond
 
 	wm := NewWindowManager(windowDuration, func(tenantID, deviceID string, readings []SensorEvent) {
-		features := Compute(readings)
-		payload := MLRequest{DeviceID: deviceID, TenantID: tenantID, Features: features}
+		result := Compute(readings)
+		payload := MLRequest{DeviceID: deviceID, TenantID: tenantID, Features: result.Features, DataFormat: result.DataFormat}
 		if err := sink.Send(context.Background(), payload); err != nil {
 			t.Errorf("sink.Send: %v", err)
 		}
@@ -66,8 +66,12 @@ func TestPipeline_WindowAggregatesAndSendsToML(t *testing.T) {
 			t.Errorf("TemperatureBearingMean = %v, expected ~52.45", tMean)
 		}
 
-		t.Logf("✓ ML request enqueued: device=%s features=%d rms=%.4f temp=%.4f",
-			payload.DeviceID, len(slice), rRMS, tMean)
+		if payload.DataFormat != DataFormatOld {
+			t.Errorf("DataFormat = %v, want DataFormatOld for old-format readings", payload.DataFormat)
+		}
+
+		t.Logf("✓ ML request enqueued: device=%s features=%d rms=%.4f temp=%.4f format=%s",
+			payload.DeviceID, len(slice), rRMS, tMean, payload.DataFormat)
 
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for ML request — window never flushed")

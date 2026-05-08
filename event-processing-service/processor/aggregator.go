@@ -6,12 +6,23 @@ import "math"
 // Assumes x and y are orthogonal with equal energy: v_x = v_y = v_resultant / √2.
 const axisSplitFactor = 1.0 / math.Sqrt2
 
+// ComputeResult holds the computed features and metadata about the input data.
+type ComputeResult struct {
+	Features   MLFeatures
+	DataFormat DataFormat
+	Count      int // number of readings processed
+}
+
 // Compute aggregates a window of SensorEvent readings into the 52 ML features.
-// readings must be non-empty; an empty slice returns a zero-value MLFeatures.
-func Compute(readings []SensorEvent) MLFeatures {
+// readings must be non-empty; an empty slice returns a zero-value ComputeResult.
+func Compute(readings []SensorEvent) ComputeResult {
 	n := len(readings)
 	if n == 0 {
-		return MLFeatures{}
+		return ComputeResult{
+			Features:   MLFeatures{},
+			DataFormat: DataFormatUnknown,
+			Count:      0,
+		}
 	}
 
 	// --- Extract raw sequences from the window ---
@@ -30,7 +41,21 @@ func Compute(readings []SensorEvent) MLFeatures {
 	has_raw_vib := false
 	has_raw_temp := false
 
+	// Track format distribution across the window
+	oldCount := 0
+	newCount := 0
+
 	for i, r := range readings {
+		// Count format types for window-level format detection
+		switch r.DetectFormat() {
+		case DataFormatOld:
+			oldCount++
+		case DataFormatNew:
+			newCount++
+		case DataFormatMixed:
+			oldCount++
+			newCount++
+		}
 		vrms[i] = r.VRMS
 		temp[i] = r.TempC
 		hz1[i] = r.PeakHz1
@@ -131,7 +156,18 @@ func Compute(readings []SensorEvent) MLFeatures {
 		tTrend = statSlope(temp)
 	}
 
-	return MLFeatures{
+	// Determine window-level data format
+	var windowFormat DataFormat
+	if oldCount > 0 && newCount > 0 {
+		windowFormat = DataFormatMixed
+	} else if newCount > 0 {
+		windowFormat = DataFormatNew
+	} else {
+		windowFormat = DataFormatOld
+	}
+
+	return ComputeResult{
+		Features: MLFeatures{
 		// Vibration X
 		VibrationXMean:             xMean,
 		VibrationXStdDev:           xStd,
@@ -194,6 +230,9 @@ func Compute(readings []SensorEvent) MLFeatures {
 		TemperatureDifferenceMean: tMean - atmMean,
 		TemperatureDifferenceMax:  tMax - atmMin,
 		TemperatureDifferenceTrend: tTrend, // proxy
+		},
+		DataFormat: windowFormat,
+		Count:      n,
 	}
 }
 

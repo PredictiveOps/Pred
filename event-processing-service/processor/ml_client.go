@@ -12,9 +12,10 @@ import (
 
 // MLRequest is the payload sent to the ML Service.
 type MLRequest struct {
-	DeviceID string     `json:"device_id"`
-	TenantID string     `json:"tenant_id"`
-	Features MLFeatures `json:"features"`
+	DeviceID   string     `json:"device_id"`
+	TenantID   string     `json:"tenant_id"`
+	Features   MLFeatures `json:"features"`
+	DataFormat DataFormat `json:"data_format"` // old, new, or mixed - tracks which sensor format was used
 }
 
 // MLClient posts featurized payloads to the ML Service over HTTP.
@@ -36,11 +37,12 @@ func NewMLClient(url string) *MLClient {
 
 // Send marshals the MLRequest to JSON and POSTs it to the ML Service.
 // The response body is logged for observability but not parsed.
-func (c *MLClient) Send(ctx context.Context, deviceID, tenantID string, features MLFeatures) error {
+func (c *MLClient) Send(ctx context.Context, deviceID, tenantID string, features MLFeatures, dataFormat DataFormat) error {
 	payload := MLRequest{
-		DeviceID: deviceID,
-		TenantID: tenantID,
-		Features: features,
+		DeviceID:   deviceID,
+		TenantID:   tenantID,
+		Features:   features,
+		DataFormat: dataFormat,
 	}
 
 	body, err := json.Marshal(payload)

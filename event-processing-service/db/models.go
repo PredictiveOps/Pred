@@ -21,6 +21,7 @@ type ProcessedFeatures struct {
 	AssetID         string         `gorm:"not null;index:processed_features_tenant_asset,priority:3"`
 	Features        datatypes.JSON `gorm:"type:jsonb;not null"` // {rms, kurtosis, crest_factor, spectral_energy, temperature, ...}
 	FeatureVersion  string         `gorm:"default:v1"`          // schema version for features
+	DataFormat      string         `gorm:"default:old;index:processed_features_format"` // old, new, mixed - tracks sensor data format
 	CreatedAt       time.Time      `gorm:"not null;default:now();index:processed_features_timestamp"`
 	FeatureTimestamp time.Time      `gorm:"not null"` // when the feature was collected
 }
