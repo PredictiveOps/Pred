@@ -1,18 +1,16 @@
-FROM golang:alpine AS builder
+# --------- Stage 1: Build ---------
+FROM golang:1.26.2-alpine AS builder
 WORKDIR /app
-
-# Download dependencies first for better caching
 COPY go.mod go.sum ./
 RUN go mod download
-
-# Copy source and build
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o main .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o event-processing-service .
 
-FROM alpine:latest
-WORKDIR /root/
+# --------- Stage 2: Runtime ---------
+FROM alpine:3.23
+WORKDIR /app
+COPY --from=builder /app/event-processing-service .
+EXPOSE 8080
 
-# Copy the pre-built binary file from the previous stage
-COPY --from=builder /app/main .
-
-CMD ["./main"]
+# Run the service
+CMD ["./event-processing-service"]

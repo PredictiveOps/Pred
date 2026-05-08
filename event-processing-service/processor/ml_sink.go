@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -36,7 +37,7 @@ func (s *KafkaFeatureSink) Send(ctx context.Context, payload MLRequest) error {
 	}
 
 	msg := kafka.Message{
-		Key:   []byte(payload.DeviceID),
+		Key:   []byte(strconv.FormatUint(uint64(payload.DeviceID), 10)),
 		Value: body,
 	}
 
