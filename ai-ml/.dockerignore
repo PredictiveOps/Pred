@@ -1,0 +1,13 @@
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.git
+.gitignore
+dataset/
+logs/
+simulation/
+.env
+.env.local
+*.ipynb
+test_prediction.py
