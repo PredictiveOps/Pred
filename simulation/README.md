@@ -2,6 +2,29 @@
 
 This folder contains data simulators for MQTT and ML prediction replay.
 
+## Quick Start (Full Pipeline)
+
+Use the helper script to run simulation through the complete pipeline (MQTT → Ingestion → Kafka):
+
+```bash
+# Basic usage (new format, 100 messages)
+./run_simulation.sh 1 new 100
+
+# Old format with custom rate
+./run_simulation.sh 1 old 1000 50
+```
+
+**Prerequisites:**
+- Docker compose is running (`docker compose up -d`)
+- Ingestion service is available on port 2500
+- Mosquitto MQTT broker on port 8883
+
+The script automatically:
+1. Generates device keypair (if missing)
+2. Registers device via HTTP API
+3. Registers public key via MQTT
+4. Runs signed simulation
+
 ## Raw Telemetry Engine
 
 Run `raw_telemetry_engine.py` when you need switchable payload formats.
@@ -20,12 +43,14 @@ Use `--format` to switch payload schema:
 
 - `--format old`
   - `device_id`
-  - `asset_id`
-  - `timestamp`
-  - `vibration_x` (array of 10 samples)
-  - `vibration_y` (array of 10 samples)
-  - `temperature_bearing`
-  - `temperature_atmospheric`
+  - `tenant_id`
+  - `mode`
+  - `v_rms`
+  - `temp_c`
+  - `peak_hz_1`
+  - `peak_hz_2`
+  - `peak_hz_3`
+  - `status`
 
 Examples:
 
@@ -83,7 +108,7 @@ Envelope shape expected by ingestion:
 }
 ```
 
-Because of this, `raw_telemetry_engine.py` formats (`new` and `old`) are useful for raw MQTT load simulation, but are **not** accepted by ingestion for Kafka forwarding unless you add a mapper/signer or extend ingestion schema validation.
+The `new` format maps to `NewTelemetryData` and `old` format maps to `OldTelemetryData` expected by ingestion-service. Both formats work with Kafka forwarding when using `--signed` mode with proper device registration.
 
 ## Ingestion schema switch
 

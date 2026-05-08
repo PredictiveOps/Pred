@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"ingestion-service/db"
 	"log"
-	"math"
 	"strconv"
 	"strings"
 )
@@ -158,17 +157,32 @@ func resolveDevicePublicKey(deviceID uint, fallbackPublicKey *string) (string, e
 	return key, nil
 }
 
-func prepareKafkaPayload(deviceID uint, timestamp int64, data db.SensorDeviceData) *db.KafkaPayload {
-	return &db.KafkaPayload{
-		DeviceID:  deviceID,
-		Timestamp: timestamp,
-		Mode:      data.Mode,
-		VRMS:      data.VRMS,
-		TempC:     data.TempC,
-		PeakHz1:   data.PeakHz1,
-		PeakHz2:   data.PeakHz2,
-		PeakHz3:   data.PeakHz3,
-		Status:    data.Status,
+func prepareKafkaPayload(deviceID uint, timestamp int64, data interface{}) interface{} {
+	switch d := data.(type) {
+	case db.OldTelemetryData:
+		return &db.OldKafkaPayload{
+			DeviceID:  deviceID,
+			Timestamp: timestamp,
+			Mode:      d.Mode,
+			VRMS:      d.VRMS,
+			TempC:     d.TempC,
+			PeakHz1:   d.PeakHz1,
+			PeakHz2:   d.PeakHz2,
+			PeakHz3:   d.PeakHz3,
+			Status:    d.Status,
+		}
+	case db.NewTelemetryData:
+		return &db.NewKafkaPayload{
+			DeviceID:        deviceID,
+			Timestamp:       timestamp,
+			VibrationX:      d.VibrationX,
+			VibrationY:      d.VibrationY,
+			TempMotor:       d.TempMotor,
+			TempAtmospheric: d.TempAtmospheric,
+		}
+	default:
+		log.Printf("unknown sensor data type: %T", data)
+		return nil
 	}
 }
 
@@ -194,81 +208,58 @@ func verifyRawDataStructure(payload []byte) (*db.MQTTPayload, error) {
 	return &message, nil
 }
 
-func parseSensorDataFromSchema(rawData json.RawMessage) (db.SensorDeviceData, error) {
+func parseSensorDataFromSchema(rawData json.RawMessage) (interface{}, error) {
 	switch payloadSchemaFormat {
-	case schemaFormatIngestion:
-		log.Printf("parsing with ingestion schema format")
-		return parseIngestionSensorData(rawData)
-	case schemaFormatNew:
-		log.Printf("parsing with new schema format")
-		return parseNewSensorData(rawData)
 	case schemaFormatOld:
-		log.Printf("parsing with old schema format")
+		return parseOldSensorData(rawData)
+	case schemaFormatNew:
+		return parseNewSensorData(rawData)
+	case schemaFormatIngestion:
+		return parseIngestionSensorData(rawData)
+	case schemaFormatAuto:
+		// Attempt new format first
+		if data, err := parseNewSensorData(rawData); err == nil {
+			return data, nil
+		}
+		// Fallback to old format
 		return parseOldSensorData(rawData)
 	default:
-		log.Printf("auto-detecting schema format")
-		if parsed, err := parseIngestionSensorData(rawData); err == nil {
-			log.Printf("auto-detected ingestion format")
-			return parsed, nil
-		}
-		log.Printf("ingestion format failed, trying new format")
-		if parsed, err := parseNewSensorData(rawData); err == nil {
-			log.Printf("auto-detected new format, parsed data: mode=%s v_rms=%f temp_c=%f", parsed.Mode, parsed.VRMS, parsed.TempC)
-			return parsed, nil
-		}
-		log.Printf("new format failed, trying old format")
-		if parsed, err := parseOldSensorData(rawData); err == nil {
-			log.Printf("auto-detected old format")
-			return parsed, nil
-		}
-		return db.SensorDeviceData{}, fmt.Errorf("unable to parse data payload using auto schema detection")
+		return nil, fmt.Errorf("unsupported payload schema format: %s", payloadSchemaFormat)
 	}
 }
 
-func parseIngestionSensorData(rawData json.RawMessage) (db.SensorDeviceData, error) {
-	var sensorData db.SensorDeviceData
-	if err := json.Unmarshal(rawData, &sensorData); err != nil {
-		return db.SensorDeviceData{}, err
+func parseIngestionSensorData(rawData json.RawMessage) (db.OldTelemetryData, error) {
+	var data db.OldTelemetryData
+	if err := json.Unmarshal(rawData, &data); err != nil {
+		return db.OldTelemetryData{}, err
 	}
-	if sensorData.Mode == "" || sensorData.Status == "" {
-		return db.SensorDeviceData{}, fmt.Errorf("missing required ingestion fields")
-	}
-	return sensorData, nil
+	return data, nil
 }
 
-func parseNewSensorData(rawData json.RawMessage) (db.SensorDeviceData, error) {
+func parseNewSensorData(rawData json.RawMessage) (db.NewTelemetryData, error) {
 	var newData db.NewTelemetryData
 	if err := json.Unmarshal(rawData, &newData); err != nil {
-		return db.SensorDeviceData{}, err
-	}
-	if newData.DeviceName == "" {
-		return db.SensorDeviceData{}, fmt.Errorf("missing device_name in new format payload")
+		return db.NewTelemetryData{}, err
 	}
 
-	vRMS := math.Sqrt((newData.VibrationX*newData.VibrationX + newData.VibrationY*newData.VibrationY) / 2.0)
-	mode, status := classifyHealth(vRMS, newData.TempMotor)
+	// Basic validation for new format
+	if newData.VibrationX == 0 && newData.VibrationY == 0 {
+		return db.NewTelemetryData{}, fmt.Errorf("invalid new-format data: all zeros")
+	}
 
-	return db.SensorDeviceData{
-		Mode:    mode,
-		VRMS:    vRMS,
-		TempC:   newData.TempMotor,
-		PeakHz1: 0,
-		PeakHz2: 0,
-		PeakHz3: 0,
-		Status:  status,
-	}, nil
+	return newData, nil
 }
 
-func parseOldSensorData(rawData json.RawMessage) (db.SensorDeviceData, error) {
+func parseOldSensorData(rawData json.RawMessage) (db.OldTelemetryData, error) {
 	var oldData db.OldTelemetryData
 	if err := json.Unmarshal(rawData, &oldData); err != nil {
-		return db.SensorDeviceData{}, err
+		return db.OldTelemetryData{}, err
 	}
 	if oldData.Mode == "" || oldData.Status == "" {
-		return db.SensorDeviceData{}, fmt.Errorf("missing required old-format fields")
+		return db.OldTelemetryData{}, fmt.Errorf("missing required old-format fields")
 	}
 
-	return db.SensorDeviceData(oldData), nil
+	return oldData, nil
 }
 
 func classifyHealth(vRMS float64, tempC float64) (string, string) {

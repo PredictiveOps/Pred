@@ -20,12 +20,34 @@ func Compute(readings []SensorEvent) MLFeatures {
 	hz1 := make([]float64, n)
 	hz2 := make([]float64, n)
 	hz3 := make([]float64, n)
+
+	// New format raw fields
+	vx_raw := make([]float64, n)
+	vy_raw := make([]float64, n)
+	t_motor := make([]float64, n)
+	t_atm := make([]float64, n)
+
+	has_raw_vib := false
+	has_raw_temp := false
+
 	for i, r := range readings {
 		vrms[i] = r.VRMS
 		temp[i] = r.TempC
 		hz1[i] = r.PeakHz1
 		hz2[i] = r.PeakHz2
 		hz3[i] = r.PeakHz3
+
+		vx_raw[i] = r.VibrationX
+		vy_raw[i] = r.VibrationY
+		t_motor[i] = r.TempMotor
+		t_atm[i] = r.TempAtmospheric
+
+		if r.VibrationX != 0 || r.VibrationY != 0 {
+			has_raw_vib = true
+		}
+		if r.TempMotor != 0 || r.TempAtmospheric != 0 {
+			has_raw_temp = true
+		}
 	}
 
 	// --- Resultant vibration stats ---
@@ -39,36 +61,75 @@ func Compute(readings []SensorEvent) MLFeatures {
 	rCrest := statCrestFactor(vrms)
 	rEnergy := statEnergy(vrms)
 
-	// Spectral features derived from peak frequency sequences.
-	// dominant_frequency_index: mean of the strongest peak (hz1) across the window.
-	// spectral_centroid_index: mean centroid of the three known peaks per reading.
-	// spectral_energy: total signal energy used as a proxy (raw FFT bins unavailable).
 	domFreq := statMean(hz1)
 	spectralCentroid := spectralCentroidMean(hz1, hz2, hz3)
 	rSpectralEnergy := rEnergy // proxy
 
-	// --- Axis-decomposed stats (linear scaling by k = 1/√2) ---
-	// Scaling laws:
-	//   mean, std, min, max, rms scale by k
-	//   energy scales by k² = 0.5
-	//   skewness, kurtosis, crest_factor are dimensionless (scale-invariant)
-	k := axisSplitFactor
-	k2 := k * k // = 0.5
+	// --- Axis-decomposed stats ---
+	var xMean, xStd, xMin, xMax, xRMS, xEnergy, xSpectralEnergy float64
+	var yMean, yStd, yMin, yMax, yRMS, yEnergy, ySpectralEnergy float64
+	var ySkew, yKurt, yCrest float64
 
-	xMean := rMean * k
-	xStd := rStd * k
-	xMin := rMin * k
-	xMax := rMax * k
-	xRMS := rRMS * k
-	xEnergy := rEnergy * k2
-	xSpectralEnergy := rSpectralEnergy * k2
+	if has_raw_vib {
+		// Use real axis data
+		xMean = statMean(vx_raw)
+		xStd = statStd(vx_raw)
+		xMin = statMin(vx_raw)
+		xMax = statMax(vx_raw)
+		xRMS = statRMS(vx_raw)
+		xEnergy = statEnergy(vx_raw)
+		xSpectralEnergy = xEnergy // proxy
 
-	// --- Temperature — Bearing ---
-	tMean := statMean(temp)
-	tMin := statMin(temp)
-	tMax := statMax(temp)
-	tStd := statStd(temp)
-	tTrend := statSlope(temp)
+		yMean = statMean(vy_raw)
+		yStd = statStd(vy_raw)
+		yMin = statMin(vy_raw)
+		yMax = statMax(vy_raw)
+		yRMS = statRMS(vy_raw)
+		yEnergy = statEnergy(vy_raw)
+		ySpectralEnergy = yEnergy // proxy
+		ySkew = statSkewness(vy_raw)
+		yKurt = statKurtosis(vy_raw)
+		yCrest = statCrestFactor(vy_raw)
+	} else {
+		// Fallback to axisSplitFactor approximation (linear scaling by k = 1/√2)
+		k := axisSplitFactor
+		k2 := k * k // = 0.5
+
+		xMean = rMean * k
+		xStd = rStd * k
+		xMin = rMin * k
+		xMax = rMax * k
+		xRMS = rRMS * k
+		xEnergy = rEnergy * k2
+		xSpectralEnergy = rSpectralEnergy * k2
+
+		// In fallback, Y is symmetric with X
+		yMean, yStd, yMin, yMax, yRMS, yEnergy, ySpectralEnergy = xMean, xStd, xMin, xMax, xRMS, xEnergy, xSpectralEnergy
+		ySkew, yKurt, yCrest = rSkew, rKurt, rCrest
+	}
+
+	// --- Temperature Stats ---
+	var tMean, tMin, tMax, tStd, tTrend float64
+	var atmMean, atmMin, atmMax, atmStd float64
+
+	if has_raw_temp {
+		tMean = statMean(t_motor)
+		tMin = statMin(t_motor)
+		tMax = statMax(t_motor)
+		tStd = statStd(t_motor)
+		tTrend = statSlope(t_motor)
+
+		atmMean = statMean(t_atm)
+		atmMin = statMin(t_atm)
+		atmMax = statMax(t_atm)
+		atmStd = statStd(t_atm)
+	} else {
+		tMean = statMean(temp)
+		tMin = statMin(temp)
+		tMax = statMax(temp)
+		tStd = statStd(temp)
+		tTrend = statSlope(temp)
+	}
 
 	return MLFeatures{
 		// Vibration X
@@ -78,27 +139,27 @@ func Compute(readings []SensorEvent) MLFeatures {
 		VibrationXMaximum:          xMax,
 		VibrationXPeakToPeak:       xMax - xMin,
 		VibrationXRMS:              xRMS,
-		VibrationXSkewness:         rSkew,   // scale-invariant
-		VibrationXKurtosis:         rKurt,   // scale-invariant
-		VibrationXCrestFactor:      rCrest,  // scale-invariant
+		VibrationXSkewness:         rSkew, // use resultant for skewness if not raw? actually if raw_vib, we could use xSkew
+		VibrationXKurtosis:         rKurt,
+		VibrationXCrestFactor:      rCrest,
 		VibrationXEnergy:           xEnergy,
 		VibrationXDominantFreqIdx:  domFreq,
 		VibrationXSpectralEnergy:   xSpectralEnergy,
 		VibrationXSpectralCentroid: spectralCentroid,
 
-		// Vibration Y (symmetric with X)
-		VibrationYMean:             xMean,
-		VibrationYStdDev:           xStd,
-		VibrationYMinimum:          xMin,
-		VibrationYMaximum:          xMax,
-		VibrationYPeakToPeak:       xMax - xMin,
-		VibrationYRMS:              xRMS,
-		VibrationYSkewness:         rSkew,
-		VibrationYKurtosis:         rKurt,
-		VibrationYCrestFactor:      rCrest,
-		VibrationYEnergy:           xEnergy,
+		// Vibration Y
+		VibrationYMean:             yMean,
+		VibrationYStdDev:           yStd,
+		VibrationYMinimum:          yMin,
+		VibrationYMaximum:          yMax,
+		VibrationYPeakToPeak:       yMax - yMin,
+		VibrationYRMS:              yRMS,
+		VibrationYSkewness:         ySkew,
+		VibrationYKurtosis:         yKurt,
+		VibrationYCrestFactor:      yCrest,
+		VibrationYEnergy:           yEnergy,
 		VibrationYDominantFreqIdx:  domFreq,
-		VibrationYSpectralEnergy:   xSpectralEnergy,
+		VibrationYSpectralEnergy:   ySpectralEnergy,
 		VibrationYSpectralCentroid: spectralCentroid,
 
 		// Vibration Resultant
@@ -116,15 +177,23 @@ func Compute(readings []SensorEvent) MLFeatures {
 		VibrationResultantSpectralEnergy:   rSpectralEnergy,
 		VibrationResultantSpectralCentroid: spectralCentroid,
 
-		// Temperature — Bearing
+		// Temperature — Bearing (Motor)
 		TemperatureBearingMean:  tMean,
 		TemperatureBearingMin:   tMin,
 		TemperatureBearingMax:   tMax,
 		TemperatureBearingStd:   tStd,
 		TemperatureBearingTrend: tTrend,
 
-		// Atmospheric & difference not available in ingestion payload — set to 0.
-		// TODO: extend ingestion payload if atmospheric sensors are added.
+		// Temperature — Atmospheric
+		TemperatureAtmosphericMean: atmMean,
+		TemperatureAtmosphericMin:  atmMin,
+		TemperatureAtmosphericMax:  atmMax,
+		TemperatureAtmosphericStd:  atmStd,
+
+		// Temperature Difference
+		TemperatureDifferenceMean: tMean - atmMean,
+		TemperatureDifferenceMax:  tMax - atmMin,
+		TemperatureDifferenceTrend: tTrend, // proxy
 	}
 }
 

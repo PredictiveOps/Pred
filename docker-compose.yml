@@ -121,7 +121,7 @@ services:
       - MQTT_USERNAME=${MQTT_INGESTION_USERNAME:-pred-ingestion}
       - MQTT_PASSWORD=${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
       - MQTT_TOPIC=devices/+/data
-      - MQTT_PAYLOAD_FORMAT=${MQTT_PAYLOAD_FORMAT:-new}
+      - MQTT_PAYLOAD_FORMAT=new
       - MQTT_DEVICE_REGISTRATION_TOPIC=devices/+/registration
       - MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC=devices/%d/registration/response
       - REDIS_ADDR=redis:6379
@@ -129,6 +129,8 @@ services:
       - REDIS_DB=0
       - REDIS_PUBKEY_TTL=30m
       - REDIS_NONCE_TTL=60s
+    ports:
+      - "2500:8003"
     depends_on:
       postgres:
         condition: service_healthy
@@ -162,6 +164,8 @@ services:
       - HTTP_PORT=8001
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/events
       - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC=sensor_data
+      - DATA_FORMAT=${DATA_FORMAT:-new}
     depends_on:
       postgres:
         condition: service_healthy

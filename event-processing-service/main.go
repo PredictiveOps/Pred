@@ -118,8 +118,37 @@ func main() {
 
 func handleMessage(ctx context.Context, gdb *gorm.DB, wm *processor.WindowManager, msg kafka.Message) error {
 	var event processor.SensorEvent
-	if err := json.Unmarshal(msg.Value, &event); err != nil {
-		return fmt.Errorf("unmarshal: %w", err)
+	format := getEnv("DATA_FORMAT", "new")
+
+	if format == "old" {
+		var oldEvent processor.OldSensorEvent
+		if err := json.Unmarshal(msg.Value, &oldEvent); err != nil {
+			return fmt.Errorf("unmarshal old format: %w", err)
+		}
+		event = processor.SensorEvent{
+			DeviceID: oldEvent.DeviceID,
+			TenantID: oldEvent.TenantID,
+			Mode:     oldEvent.Mode,
+			VRMS:     oldEvent.VRMS,
+			TempC:    oldEvent.TempC,
+			PeakHz1:  oldEvent.PeakHz1,
+			PeakHz2:  oldEvent.PeakHz2,
+			PeakHz3:  oldEvent.PeakHz3,
+			Status:   oldEvent.Status,
+		}
+	} else {
+		var newEvent processor.NewSensorEvent
+		if err := json.Unmarshal(msg.Value, &newEvent); err != nil {
+			return fmt.Errorf("unmarshal new format: %w", err)
+		}
+		event = processor.SensorEvent{
+			DeviceID:        newEvent.DeviceID,
+			TenantID:        newEvent.TenantID,
+			VibrationX:      newEvent.VibrationX,
+			VibrationY:      newEvent.VibrationY,
+			TempMotor:       newEvent.TempMotor,
+			TempAtmospheric: newEvent.TempAtmospheric,
+		}
 	}
 
 	id, err := db.InsertEvent(ctx, gdb, event.TenantID, msg.Value)
@@ -127,7 +156,7 @@ func handleMessage(ctx context.Context, gdb *gorm.DB, wm *processor.WindowManage
 		return fmt.Errorf("insert event: %w", err)
 	}
 
-	log.Printf("event stored (id %d, device %q, tenant %q)", id, event.DeviceID, event.TenantID)
+	log.Printf("event stored (id %d, device %q, tenant %q, format %s)", id, event.DeviceID, event.TenantID, format)
 	wm.Add(event)
 	return nil
 }
