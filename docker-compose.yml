@@ -178,6 +178,8 @@ services:
     environment:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/notifications
       - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC=alerts
+      - KAFKA_GROUP_ID=notifications-service
     depends_on:
       postgres:
         condition: service_healthy
@@ -223,11 +225,16 @@ services:
       - API_PORT=8000
       - MODEL_DIR=/app/artifacts/models
       - LOG_LEVEL=INFO
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_PREDICTIONS_TOPIC=predictions
+      - KAFKA_ENABLED=true
     ports:
       - "8004:8000"
     depends_on:
       postgres:
         condition: service_healthy
+      kafka:
+        condition: service_started
     volumes:
       - ml_models:/app/artifacts/models
     restart: unless-stopped
@@ -237,6 +244,42 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  alert-notifier:
+    build:
+      context: ./ai-ml
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_PREDICTIONS_TOPIC=predictions
+      - KAFKA_ALERTS_TOPIC=alerts
+      - KAFKA_CONSUMER_GROUP=alert-notifier
+      - KAFKA_ENABLED=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      kafka:
+        condition: service_started
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "/alert-notifier-entrypoint.sh"]
+    working_dir: /app/src
+
+  prediction-persister:
+    build:
+      context: ./ai-ml
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/predictions
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_PREDICTIONS_TOPIC=predictions
+      - KAFKA_CONSUMER_GROUP=prediction-persister
+      - KAFKA_ENABLED=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "/prediction-persister-entrypoint.sh"]
+    working_dir: /app/src
 
 volumes:
   postgres_data:

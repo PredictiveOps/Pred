@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
-# Processed Data -> Kafka -> ML Service Pipeline
+# =============================================================================
+# Full Prediction Pipeline Simulation
+# =============================================================================
+# Pipeline Flow:
+#   Simulation (CSV) -> Kafka (processed-data) -> ML Service (/predict/vibration)
+#       -> Kafka (predictions) -> prediction-persister -> Database (ALL predictions)
+#                            -> alert-notifier -> Kafka (alerts) [warning/critical only]
+# =============================================================================
 # Usage: ./processed_data_simulation.sh [--loop] [--delay SECONDS] [--kafka-brokers BROKERS]
+# =============================================================================
 
 set -e
 
@@ -12,7 +20,7 @@ LOOP_FLAG=""
 DELAY="1.0"
 KAFKA_BROKERS="localhost:9092"
 KAFKA_TOPIC="processed-data"
-ML_SERVICE_URL="http://localhost:8004/processed-features"
+ML_SERVICE_URL="http://localhost:8004/predict/vibration"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -54,15 +62,31 @@ cleanup() {
 trap cleanup EXIT
 
 echo "=========================================="
-echo "Processed Data -> Kafka -> ML Service Pipeline"
+echo "Full Prediction Pipeline Simulation"
 echo "=========================================="
-echo "Kafka Brokers:  $KAFKA_BROKERS"
-echo "Kafka Topic:    $KAFKA_TOPIC"
-echo "ML Service:     $ML_SERVICE_URL"
-echo "CSV Path:       $CSV_PATH"
-echo "Delay:          ${DELAY}s between messages"
-echo "Loop Mode:      $([ -n "$LOOP_FLAG" ] && echo 'enabled' || echo 'disabled')"
-echo "Log File:       $LOG_PATH"
+echo ""
+echo "Pipeline Architecture:"
+echo "  [Simulation] --(CSV)--> [Kafka: processed-data]"
+echo "       |"
+echo "       v"
+echo "  [Bridge] --(HTTP)--> [ML Service: /predict/vibration]"
+echo "       |"
+echo "       v"
+echo "  [Kafka: predictions]"
+echo "       |"
+echo "       +---> [prediction-persister] --> [Database: ALL predictions]"
+echo "       |"
+echo "       +---> [alert-notifier] --> [Kafka: alerts] (warning/critical only)"
+echo ""
+echo "=========================================="
+echo "Configuration:"
+echo "  Kafka Brokers:  $KAFKA_BROKERS"
+echo "  Input Topic:    $KAFKA_TOPIC"
+echo "  ML Service:     $ML_SERVICE_URL"
+echo "  CSV Path:       $CSV_PATH"
+echo "  Delay:          ${DELAY}s between messages"
+echo "  Loop Mode:      $([ -n "$LOOP_FLAG" ] && echo 'enabled' || echo 'disabled')"
+echo "  Log File:       $LOG_PATH"
 echo ""
 
 # Check prerequisites
@@ -84,6 +108,24 @@ if ! curl -s "http://localhost:8004/health" >/dev/null 2>&1; then
     exit 1
 fi
 echo "✓ ML Service is healthy"
+
+# Check prediction-persister
+echo "Checking prediction-persister..."
+if docker compose -f "$PROJECT_ROOT/docker-compose.yml" ps prediction-persister 2>/dev/null | grep -q "Up"; then
+    echo "✓ prediction-persister is running (will store ALL predictions to database)"
+else
+    echo "⚠ prediction-persister is not running (predictions won't be stored to DB)"
+    echo "  Start with: docker compose up -d prediction-persister"
+fi
+
+# Check alert-notifier
+echo "Checking alert-notifier..."
+if docker compose -f "$PROJECT_ROOT/docker-compose.yml" ps alert-notifier 2>/dev/null | grep -q "Up"; then
+    echo "✓ alert-notifier is running (will filter warning/critical to alerts topic)"
+else
+    echo "⚠ alert-notifier is not running (alerts won't be generated)"
+    echo "  Start with: docker compose up -d alert-notifier"
+fi
 echo ""
 
 # Start the bridge consumer in background
@@ -117,8 +159,29 @@ echo "=========================================="
 echo "Simulation complete!"
 echo "Predictions logged to: $LOG_PATH"
 echo ""
-echo "Check ML service database:"
-echo "  docker compose exec ml-service python -c \\"
-echo "    'from db_models import get_db_engine; from sqlalchemy import text; \\"
-echo "     engine = get_db_engine(\"postgresql://postgres:postgres@postgres:5432/predictions\"); \\"
-echo "     print(list(engine.connect().execute(text(\"SELECT device_id FROM processed_features LIMIT 5\"))))'"
+echo "=========================================="
+echo "Verify Pipeline:"
+echo "=========================================="
+echo ""
+echo "1. Check predictions Kafka topic:"
+echo "   docker exec -it \$(docker ps -qf 'ancestor=apache/kafka') \\"
+echo "     /opt/kafka/bin/kafka-console-consumer.sh \\"
+echo "     --bootstrap-server localhost:9092 --topic predictions --from-beginning --max-messages 5"
+echo ""
+echo "2. Check alerts Kafka topic (warning/critical only):"
+echo "   docker exec -it \$(docker ps -qf 'ancestor=apache/kafka') \\"
+echo "     /opt/kafka/bin/kafka-console-consumer.sh \\"
+echo "     --bootstrap-server localhost:9092 --topic alerts --from-beginning --max-messages 5"
+echo ""
+echo "3. Check predictions in database:"
+echo "   docker exec anomaly_detection_project-postgres-1 \\"
+echo "     psql -U postgres -d predictions \\"
+echo "     -c 'SELECT prediction_id, predicted_status, created_at FROM predictions ORDER BY created_at DESC LIMIT 10;'"
+echo ""
+echo "4. Check prediction-persister logs:"
+echo "   docker compose logs prediction-persister --tail 20"
+echo ""
+echo "5. Check alert-notifier logs:"
+echo "   docker compose logs alert-notifier --tail 20"
+echo ""
+echo "=========================================="

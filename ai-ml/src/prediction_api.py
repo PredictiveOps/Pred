@@ -13,6 +13,7 @@ This API provides:
 from __future__ import annotations
 
 import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -27,6 +28,7 @@ from db_models import (
     get_session,
     init_db,
 )
+from kafka_producer import publish_prediction, close_producer
 from model_version_service import ModelVersionService
 from prediction_module import BearingAnomalyPredictor
 from prediction_service import PredictionService
@@ -44,6 +46,10 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://user:password@localhost:5433/predictions",
 )
+# Kafka configuration
+KAFKA_BROKERS = os.getenv("KAFKA_BROKERS", "localhost:9092")
+KAFKA_PREDICTIONS_TOPIC = os.getenv("KAFKA_PREDICTIONS_TOPIC", "predictions")
+KAFKA_ENABLED = os.getenv("KAFKA_ENABLED", "true").lower() == "true"
 
 # Initialize database
 engine = init_db(DATABASE_URL)
@@ -61,6 +67,12 @@ app = FastAPI(
     description="Human-in-the-loop ML pipeline for predictive maintenance",
     version="1.0.0",
 )
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    """Cleanup on application shutdown."""
+    close_producer()
 
 
 # ============================================================================
@@ -315,7 +327,7 @@ def get_latest_features(
 def predict(request: PredictRequest, db: Session = Depends(get_db)):
     """
     Run prediction on latest features for an asset.
-    Prediction is saved as pending_review status.
+    Prediction is saved as pending_review status and published to Kafka.
     """
     if db is None:
         db = get_db()
@@ -347,6 +359,29 @@ def predict(request: PredictRequest, db: Session = Depends(get_db)):
             predicted_status=prediction_result["predicted_status"],
         )
 
+        # Build prediction data for Kafka
+        prediction_data = {
+            "prediction_id": prediction.prediction_id,
+            "tenant_id": prediction.tenant_id,
+            "device_id": prediction.device_id,
+            "asset_id": prediction.asset_id,
+            "model_name": prediction.model_name,
+            "model_version": prediction.model_version,
+            "anomaly_score": prediction.anomaly_score,
+            "predicted_status": prediction.predicted_status,
+            "severity_level": prediction_result["severity_level"],
+            "is_anomaly": prediction_result["is_anomaly"],
+            "recommended_action": prediction_result["recommended_action"],
+            "timestamp": prediction.created_at.isoformat(),
+            "features": features.features,
+        }
+
+        # Publish prediction to Kafka
+        kafka_published = publish_prediction(prediction_data)
+        if not kafka_published and KAFKA_ENABLED:
+            # Log warning but don't fail the request
+            pass  # Kafka publishing is non-blocking, errors are logged in kafka_producer
+
         return PredictionDetailResponse(
             prediction_id=prediction.prediction_id,
             tenant_id=prediction.tenant_id,
@@ -365,6 +400,81 @@ def predict(request: PredictRequest, db: Session = Depends(get_db)):
         )
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error running prediction: {str(e)}")
+
+
+class PredictVibrationRequest(BaseModel):
+    """Request model for direct vibration prediction with features."""
+    tenant_id: str = Field(default="demo_tenant", description="Tenant identifier")
+    device_id: str = Field(..., description="Device identifier")
+    asset_id: str = Field(..., description="Asset identifier")
+    features: dict[str, Any] = Field(..., description="Feature values for prediction")
+
+
+class PredictVibrationResponse(BaseModel):
+    """Response model for vibration prediction."""
+    device_id: str
+    asset_id: str
+    model_name: str
+    model_version: str
+    anomaly_score: float
+    predicted_status: str
+    severity_level: int
+    is_anomaly: bool
+    recommended_action: str
+    timestamp: str
+
+
+@app.post("/predict/vibration", response_model=PredictVibrationResponse)
+def predict_vibration(request: PredictVibrationRequest):
+    """
+    Run prediction directly on provided features.
+    This endpoint is used by the simulation pipeline.
+    Prediction is published to Kafka 'predictions' topic.
+    """
+    try:
+        # Run model prediction directly on provided features
+        prediction_result = PREDICTOR.predict(
+            feature_row=request.features,
+            device_id=request.device_id,
+            asset_id=request.asset_id,
+        )
+
+        timestamp = datetime.now(timezone.utc)
+
+        # Build prediction data for Kafka
+        prediction_data = {
+            "prediction_id": str(uuid.uuid4()),  # Generate a unique ID
+            "tenant_id": request.tenant_id,
+            "device_id": request.device_id,
+            "asset_id": request.asset_id,
+            "model_name": PREDICTOR.model_name,
+            "model_version": PREDICTOR.model_version,
+            "anomaly_score": prediction_result["anomaly_score"],
+            "predicted_status": prediction_result["predicted_status"],
+            "severity_level": prediction_result["severity_level"],
+            "is_anomaly": prediction_result["is_anomaly"],
+            "recommended_action": prediction_result["recommended_action"],
+            "timestamp": timestamp.isoformat(),
+            "features": request.features,
+        }
+
+        # Publish prediction to Kafka
+        publish_prediction(prediction_data)
+
+        return PredictVibrationResponse(
+            device_id=request.device_id,
+            asset_id=request.asset_id,
+            model_name=PREDICTOR.model_name,
+            model_version=PREDICTOR.model_version,
+            anomaly_score=prediction_result["anomaly_score"],
+            predicted_status=prediction_result["predicted_status"],
+            severity_level=prediction_result["severity_level"],
+            is_anomaly=prediction_result["is_anomaly"],
+            recommended_action=prediction_result["recommended_action"],
+            timestamp=timestamp.isoformat(),
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error running prediction: {str(e)}")
 

@@ -27,7 +27,8 @@ except ImportError:
 KAFKA_BROKERS = os.getenv("KAFKA_BROKERS", "localhost:9092").split(",")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "processed-data")
 # In Docker: use ml-service:8000, outside Docker: use localhost:8004 (mapped port)
-ML_SERVICE_URL = os.getenv("ML_SERVICE_URL", "http://localhost:8000/processed-features")
+# Use /predict/vibration to get predictions AND publish to Kafka
+ML_SERVICE_URL = os.getenv("ML_SERVICE_URL", "http://localhost:8004/predict/vibration")
 CONSUMER_GROUP = os.getenv("CONSUMER_GROUP", "processed-data-bridge")
 
 logging.basicConfig(
@@ -69,7 +70,7 @@ def post_to_ml_service(payload: dict[str, Any]) -> tuple[bool, dict]:
 
 
 def transform_to_ml_format(kafka_message: dict) -> dict | None:
-    """Transform Kafka message to ML service /processed-features format."""
+    """Transform Kafka message to ML service /predict/vibration format."""
     # Expected Kafka message format from simulator
     device_id = kafka_message.get("device_id")
     tenant_id = kafka_message.get("tenant_id", "demo_tenant")
@@ -90,13 +91,12 @@ def transform_to_ml_format(kafka_message: dict) -> dict | None:
     except (ValueError, TypeError):
         feature_timestamp = datetime.now(timezone.utc)
 
+    # Format for /predict/vibration endpoint
     return {
         "tenant_id": tenant_id,
         "device_id": device_id,
         "asset_id": asset_id,
         "features": features,
-        "feature_timestamp": feature_timestamp.isoformat(),
-        "feature_version": kafka_message.get("feature_version", "v1"),
     }
 
 

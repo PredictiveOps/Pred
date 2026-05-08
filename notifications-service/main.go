@@ -99,9 +99,7 @@ func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, msg kafka.Messag
 	if event.TenantID == "" {
 		return fmt.Errorf("missing tenant_id")
 	}
-	if len(event.Recipients) == 0 {
-		return fmt.Errorf("missing recipients")
-	}
+	// Allow empty recipients for broadcast alerts - notification will be persisted but not delivered
 	if event.Type != "push" && event.Type != "email" {
 		return fmt.Errorf("unknown notification type %q", event.Type)
 	}
@@ -133,6 +131,12 @@ func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, msg kafka.Messag
 		}
 		msgBytes, _ := json.Marshal(wsMsg)
 		hub.Broadcast(event.TenantID, msgBytes)
+	}
+
+	// Skip delivery fan-out for broadcast alerts with no recipients
+	if len(event.Recipients) == 0 {
+		log.Printf("Broadcast alert persisted (no recipients for delivery) - notif_id: %d, tenant: %s", notifID, event.TenantID)
+		return nil
 	}
 
 	switch event.Type {

@@ -11,3 +11,4 @@ pydantic-settings==2.14.0
 requests==2.33.1
 paho-mqtt==2.1.0
 cryptography==45.0.5
+kafka-python==2.2.10

@@ -17,9 +17,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 COPY artifacts/ ./artifacts/
 
-# Copy entrypoint script
+# Copy entrypoint scripts
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+COPY alert-notifier-entrypoint.sh /alert-notifier-entrypoint.sh
+COPY prediction-persister-entrypoint.sh /prediction-persister-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh /alert-notifier-entrypoint.sh /prediction-persister-entrypoint.sh
 
 # Set environment variables
 ENV PYTHONPATH=/app/src
