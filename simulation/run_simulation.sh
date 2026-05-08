@@ -1,6 +1,6 @@
 #!/bin/bash
 # Run MQTT simulation through the full pipeline: simulation -> MQTT -> ingestion -> Kafka
-# Usage: ./run_simulation.sh [device_id] [format] [count]
+# Usage: ./run_simulation.sh [device_id] [format] [count] [rate] [verbose]
 
 set -e
 
@@ -20,6 +20,7 @@ echo "Device ID: $DEVICE_ID"
 echo "Format: $FORMAT"
 echo "Count: $COUNT messages"
 echo "Rate: $RATE msg/s"
+echo "Verbose: ${VERBOSE:-no}"
 echo ""
 
 # 1. Generate keys if they don't exist
@@ -67,6 +68,7 @@ cd "$SIM_DIR"
 
 if [ -n "$VERBOSE" ]; then
     PROGRESS_INTERVAL=0
+    echo "Verbose mode enabled - showing message payloads"
 else
     PROGRESS_INTERVAL=10
 fi

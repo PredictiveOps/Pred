@@ -71,6 +71,7 @@ class Config:
     seed: int | None
     progress_interval: int
     tls_insecure: bool
+    verbose: bool
 
 
 class AtomicCounter:
@@ -128,6 +129,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducible streams")
     p.add_argument("--progress-interval", type=int, default=1000, help="Print progress every N messages; 0 disables")
     p.add_argument("--tls-insecure", action="store_true", help="Disable TLS cert validation for self-signed brokers")
+    p.add_argument("--verbose", "-v", action="store_true", help="Print each message payload to terminal")
     return p.parse_args()
 
 
@@ -180,6 +182,7 @@ def build_config(args: argparse.Namespace) -> Config:
         seed=args.seed,
         progress_interval=args.progress_interval,
         tls_insecure=args.tls_insecure,
+        verbose=args.verbose,
     )
 
 
@@ -251,17 +254,18 @@ def build_new_format_payload(cfg: Config, sample: dict[str, Any]) -> dict[str, A
 
 
 def build_old_format_payload(cfg: Config, sample: dict[str, Any], rng: random.Random) -> dict[str, Any]:
-    # Keep compatibility with the original raw_data_simulator payload fields.
-    vibration_x = [round(rng.normalvariate(sample["vibration_x"], 0.02), 5) for _ in range(10)]
-    vibration_y = [round(rng.normalvariate(sample["vibration_y"], 0.02), 5) for _ in range(10)]
+    # Match the Go processor's OldSensorEvent struct
+    # Fields: device_id, tenant_id, mode, v_rms, temp_c, peak_hz_1, peak_hz_2, peak_hz_3, status
     return {
         "device_id": cfg.device_id,
-        "asset_id": cfg.asset_id,
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "vibration_x": vibration_x,
-        "vibration_y": vibration_y,
-        "temperature_bearing": sample["temp_motor"],
-        "temperature_atmospheric": sample["temp_atmospheric"],
+        "tenant_id": "tenant_001",  # Default tenant for simulation
+        "mode": "normal",
+        "v_rms": sample["vibration_x"],
+        "temp_c": sample["temp_motor"],
+        "peak_hz_1": round(rng.uniform(60.0, 120.0), 2),
+        "peak_hz_2": round(rng.uniform(180.0, 300.0), 2),
+        "peak_hz_3": round(rng.uniform(420.0, 600.0), 2),
+        "status": "normal",
     }
 
 
@@ -314,6 +318,8 @@ def worker_loop(
                 payload = json.dumps(data_payload, separators=(",", ":"), sort_keys=False)
 
             client.publish(cfg.topic, payload, qos=0)
+            if cfg.verbose:
+                print(f"[worker {worker_id}] {payload}")
             sent += 1
 
             if cfg.progress_interval > 0 and current_seq % cfg.progress_interval == 0:
@@ -353,6 +359,7 @@ def main() -> None:
     print(f"Workers: {cfg.workers}")
     print(f"Duration: {cfg.duration_seconds}s")
     print(f"Count limit: {cfg.count or 'unlimited'}")
+    print(f"Verbose mode: {cfg.verbose}")
 
     private_key = None
     if cfg.signed:
