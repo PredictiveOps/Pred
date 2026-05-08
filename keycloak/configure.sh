@@ -53,6 +53,10 @@ else
     -s 'passwordPolicy=length(8) and specialChars(1) and digits(1)'
 fi
 
+# --- realm user profile: allow unmanaged attributes ---
+"$KCADM" update "users/profile" -r "$KC_REALM" \
+  -s 'unmanagedAttributePolicy=ENABLED'
+
 # --- tenant client scope ---
 TENANT_SCOPE_ID=$("$KCADM" get client-scopes -r "$KC_REALM" \
   --query 'first=0' --query 'max=200' \
