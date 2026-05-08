@@ -8,7 +8,6 @@ Keycloak is the centralized identity provider for the Pred system. This folder c
 
 ```bash
 cd web-frontend
-npm install next-auth
 ```
 
 ### 2. Start Keycloak

@@ -5,7 +5,7 @@ import { extractTenantId } from "./jwt";
 declare module "next-auth" {
 	interface Session {
 		accessToken?: string;
-		tenantId?: number | null;
+		tenantId?: string | null;
 		user?: {
 			name?: string | null;
 			email?: string | null;
@@ -31,7 +31,7 @@ export const authOptions: NextAuthOptions = {
 			issuer: `${process.env.KEYCLOAK_PUBLIC_URL}/realms/${process.env.KEYCLOAK_REALM}`,
 			authorization: {
 				url: `${process.env.KEYCLOAK_PUBLIC_URL}/realms/${process.env.KEYCLOAK_REALM}/protocol/openid-connect/auth`,
-				params: { scope: "openid profile email tenant" },
+				params: { scope: "openid profile email" },
 			},
 			token: `${process.env.KEYCLOAK_URL}/realms/${process.env.KEYCLOAK_REALM}/protocol/openid-connect/token`,
 			userinfo: `${process.env.KEYCLOAK_URL}/realms/${process.env.KEYCLOAK_REALM}/protocol/openid-connect/userinfo`,
@@ -76,20 +76,21 @@ export const authOptions: NextAuthOptions = {
 		},
 	},
 	callbacks: {
-		async jwt({ token, account, profile }) {
+		async jwt({ token, account }) {
 			if (account) {
 				token.accessToken = account.access_token;
 				token.refreshToken = account.refresh_token;
 				token.expiresAt = account.expires_at;
 				token.provider = account.provider;
+				token.tenantId = account.access_token
+					? extractTenantId(account.access_token)
+					: null;
 			}
 			return token;
 		},
 		async session({ session, token }) {
 			session.accessToken = token.accessToken as string;
-			session.tenantId = token.accessToken
-				? extractTenantId(token.accessToken as string)
-				: null;
+			session.tenantId = (token.tenantId as string | null) ?? null;
 			return session;
 		},
 	},

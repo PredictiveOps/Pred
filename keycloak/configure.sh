@@ -57,35 +57,6 @@ fi
 "$KCADM" update "users/profile" -r "$KC_REALM" \
   -s 'unmanagedAttributePolicy=ENABLED'
 
-# --- tenant client scope ---
-TENANT_SCOPE_ID=$("$KCADM" get client-scopes -r "$KC_REALM" \
-  --query 'first=0' --query 'max=200' \
-  --fields id,name --format csv --noquotes 2>/dev/null \
-  | grep ',tenant$' | cut -d, -f1 || true)
-
-if [ -z "${TENANT_SCOPE_ID:-}" ]; then
-  log "creating client scope 'tenant'"
-  TENANT_SCOPE_ID=$("$KCADM" create client-scopes -r "$KC_REALM" \
-    -s name=tenant \
-    -s protocol=openid-connect \
-    -s 'attributes."include.in.token.scope"=true' \
-    -i)
-  "$KCADM" create "client-scopes/${TENANT_SCOPE_ID}/protocol-mappers/models" \
-    -r "$KC_REALM" \
-    -s name=tenant_id \
-    -s protocol=openid-connect \
-    -s protocolMapper=oidc-usermodel-attribute-mapper \
-    -s consentRequired=false \
-    -s 'config."user.attribute"=tenant_id' \
-    -s 'config."id.token.claim"=true' \
-    -s 'config."access.token.claim"=true' \
-    -s 'config."claim.name"=tenant_id' \
-    -s 'config."jsonType.label"=String' \
-    -s 'config."userinfo.token.claim"=true'
-else
-  log "client scope 'tenant' already exists (${TENANT_SCOPE_ID})"
-fi
-
 # --- client ---
 CLIENT_UUID=$("$KCADM" get clients -r "$KC_REALM" \
   --query "clientId=${KC_CLIENT_ID}" --fields id --format csv --noquotes 2>/dev/null \
@@ -126,9 +97,27 @@ fi
   -s "redirectUris=[\"${KC_REDIRECT_URI}\"]" \
   -s "webOrigins=[\"${KC_WEB_ORIGIN}\"]"
 
-# Attach tenant scope as default so tenant_id is in the token without opting in.
-"$KCADM" update "clients/${CLIENT_UUID}/default-client-scopes/${TENANT_SCOPE_ID}" \
-  -r "$KC_REALM" >/dev/null 2>&1 || true
+# --- tenant_id protocol mapper on client ---
+MAPPER_ID=$("$KCADM" get "clients/${CLIENT_UUID}/protocol-mappers/models" -r "$KC_REALM" \
+  --fields id,name --format csv --noquotes 2>/dev/null \
+  | grep ',tenant_id$' | cut -d, -f1 || true)
+
+if [ -z "${MAPPER_ID:-}" ]; then
+  log "creating 'tenant_id' protocol mapper on client '${KC_CLIENT_ID}'"
+  "$KCADM" create "clients/${CLIENT_UUID}/protocol-mappers/models" -r "$KC_REALM" \
+    -s name=tenant_id \
+    -s protocol=openid-connect \
+    -s protocolMapper=oidc-usermodel-attribute-mapper \
+    -s consentRequired=false \
+    -s 'config."user.attribute"=tenant_id' \
+    -s 'config."id.token.claim"=true' \
+    -s 'config."access.token.claim"=true' \
+    -s 'config."claim.name"=tenant_id' \
+    -s 'config."jsonType.label"=String' \
+    -s 'config."userinfo.token.claim"=true'
+else
+  log "'tenant_id' protocol mapper already exists on client (${MAPPER_ID})"
+fi
 
 # --- test user ---
 USER_ID=$("$KCADM" get users -r "$KC_REALM" \
