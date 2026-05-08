@@ -57,11 +57,12 @@ func main() {
 	windowDuration := time.Duration(windowSecs) * time.Second
 
 	windowManager := processor.NewWindowManager(windowDuration, func(tenantID, deviceID string, readings []processor.SensorEvent) {
-		features := processor.Compute(readings)
+		result := processor.Compute(readings)
 		payload := processor.MLRequest{
-			DeviceID: deviceID,
-			TenantID: tenantID,
-			Features: features,
+			DeviceID:   deviceID,
+			TenantID:   tenantID,
+			Features:   result.Features,
+			DataFormat: result.DataFormat,
 		}
 		if err := mlSink.Send(context.Background(), payload); err != nil {
 			log.Printf("[ml] enqueue error device=%q: %v", deviceID, err)
