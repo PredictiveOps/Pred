@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,10 +18,20 @@ from urllib.parse import urlparse, urljoin
 
 import pandas as pd
 
+# Optional Kafka support
+try:
+    from kafka import KafkaProducer
+    from kafka.errors import KafkaError
+    HAS_KAFKA = True
+except ImportError:
+    HAS_KAFKA = False
+
 
 DEFAULT_CSV = Path("data/processed/bearing_features_sample.csv")
 DEFAULT_ENDPOINT = "http://localhost:8000/predict/vibration"
 DEFAULT_LOG_PATH = Path("logs/simulation_predictions.jsonl")
+DEFAULT_KAFKA_BROKERS = os.getenv("KAFKA_BROKERS", "localhost:9092")
+DEFAULT_KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "processed-data")
 STATUS_COLUMNS = {"status", "health_label", "expected_status", "label"}
 
 
@@ -60,6 +72,21 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="POST features to /processed-features then call /predict (automatically).",
     )
+    parser.add_argument(
+        "--kafka",
+        action="store_true",
+        help="Send to Kafka topic instead of HTTP endpoint (bypasses API).",
+    )
+    parser.add_argument(
+        "--kafka-brokers",
+        default=DEFAULT_KAFKA_BROKERS,
+        help="Kafka bootstrap servers (comma-separated).",
+    )
+    parser.add_argument(
+        "--kafka-topic",
+        default=DEFAULT_KAFKA_TOPIC,
+        help="Kafka topic to publish to (default: processed-data).",
+    )
     return parser.parse_args()
 
 
@@ -90,12 +117,14 @@ def split_features_and_status(row: pd.Series) -> tuple[dict[str, Any], str | Non
     return features, expected_status
 
 
-def build_packet(features: dict[str, Any]) -> dict[str, Any]:
+def build_packet(features: dict[str, Any], tenant_id: str = "demo_tenant") -> dict[str, Any]:
     return {
+        "tenant_id": tenant_id,
         "device_id": "demo_device_001",
         "asset_id": "bearing_motor_001",
         "timestamp": utc_now_iso(),
         "features": features,
+        "feature_version": "v1",
     }
 
 
@@ -130,6 +159,37 @@ def post_json(endpoint: str, payload: dict[str, Any], timeout: float = 10.0) -> 
         return None, {"error": f"Unexpected request error: {exc}"}
 
 
+def create_kafka_producer(brokers: str) -> Any | None:
+    """Create a Kafka producer if kafka-python is available."""
+    if not HAS_KAFKA:
+        print("[ERROR] kafka-python not installed. Run: pip install kafka-python")
+        return None
+    try:
+        producer = KafkaProducer(
+            bootstrap_servers=brokers.split(","),
+            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+            key_serializer=lambda k: k.encode("utf-8") if k else None,
+        )
+        print(f"[INFO] Kafka producer connected to: {brokers}")
+        return producer
+    except Exception as exc:
+        print(f"[ERROR] Failed to connect to Kafka: {exc}")
+        return None
+
+
+def send_to_kafka(producer: Any, topic: str, packet: dict[str, Any]) -> tuple[bool, str]:
+    """Send packet to Kafka topic."""
+    try:
+        device_id = packet.get("device_id", "unknown")
+        future = producer.send(topic, key=device_id, value=packet)
+        record_metadata = future.get(timeout=10)
+        return True, f"offset={record_metadata.offset}"
+    except KafkaError as exc:
+        return False, f"Kafka error: {exc}"
+    except Exception as exc:
+        return False, f"Error: {exc}"
+
+
 def ensure_log_dir(log_file: Path) -> None:
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -140,8 +200,14 @@ def replay(
     delay_seconds: float,
     log_file: Path,
     loop_mode: bool,
+    kafka_producer: Any = None,
+    kafka_topic: str = "",
 ) -> None:
     ensure_log_dir(log_file)
+
+    # Determine mode
+    use_kafka = kafka_producer is not None and kafka_topic
+    use_save_then_predict = hasattr(replay, "_save_then_predict") and replay._save_then_predict
 
     with log_file.open("a", encoding="utf-8") as log_handle:
         cycle = 0
@@ -151,34 +217,39 @@ def replay(
             for idx, row in data_frame.iterrows():
                 features, expected_status = split_features_and_status(row)
                 packet = build_packet(features)
-                # If save_then_predict is requested, POST to /processed-features
-                # then call /predict on the API base URL. Otherwise use the
-                # provided endpoint directly (backwards compatible).
-                if hasattr(replay, "_save_then_predict") and replay._save_then_predict:
+
+                if use_kafka:
+                    # Send to Kafka topic
+                    success, info = send_to_kafka(kafka_producer, kafka_topic, packet)
+                    status_code = 200 if success else 500
+                    response_body = {"kafka": info} if success else {"error": info}
+                elif use_save_then_predict:
+                    # HTTP mode: POST to /processed-features then call /predict
                     parsed = urlparse(endpoint)
                     base = f"{parsed.scheme}://{parsed.netloc}"
                     processed_url = urljoin(base, "/processed-features")
                     predict_url = urljoin(base, "/predict")
 
                     processed_payload = {
-                        "tenant_id": "demo_tenant",
+                        "tenant_id": packet["tenant_id"],
                         "device_id": packet["device_id"],
                         "asset_id": packet["asset_id"],
                         "features": packet["features"],
                         "feature_timestamp": packet["timestamp"],
-                        "feature_version": "v1",
+                        "feature_version": packet["feature_version"],
                     }
 
                     status_code_pf, response_body_pf = post_json(processed_url, processed_payload)
                     # Call predict request (API will read latest features from DB)
                     predict_payload = {
-                        "tenant_id": "demo_tenant",
+                        "tenant_id": packet["tenant_id"],
                         "device_id": packet["device_id"],
                         "asset_id": packet["asset_id"],
                         "features": packet["features"],
                     }
                     status_code, response_body = post_json(predict_url, predict_payload)
                 else:
+                    # Default HTTP mode
                     status_code, response_body = post_json(endpoint, packet)
 
                 print("\n--- Sent packet ---")
@@ -251,21 +322,37 @@ def main() -> None:
     if data_frame.empty:
         raise ValueError(f"CSV is empty: {csv_path}")
 
+    # Setup Kafka if requested
+    kafka_producer = None
+    if args.kafka:
+        print(f"[MODE] Kafka output to topic: {args.kafka_topic}")
+        kafka_producer = create_kafka_producer(args.kafka_brokers)
+        if not kafka_producer:
+            sys.exit(1)
+    else:
+        print(f"[MODE] HTTP output to: {args.endpoint}")
+
     print(f"Loaded {len(data_frame)} rows from {csv_path}")
-    print(f"Sending predictions to: {args.endpoint}")
     print(f"Logging responses to: {log_path}")
     print(f"Loop mode: {args.loop}")
 
     # Attach flag to replay function to avoid changing its signature
     replay._save_then_predict = bool(getattr(args, "save_then_predict", False))
 
-    replay(
-        data_frame=data_frame,
-        endpoint=args.endpoint,
-        delay_seconds=args.delay,
-        log_file=log_path,
-        loop_mode=args.loop,
-    )
+    try:
+        replay(
+            data_frame=data_frame,
+            endpoint=args.endpoint,
+            delay_seconds=args.delay,
+            log_file=log_path,
+            loop_mode=args.loop,
+            kafka_producer=kafka_producer,
+            kafka_topic=args.kafka_topic,
+        )
+    finally:
+        if kafka_producer:
+            kafka_producer.close()
+            print("[INFO] Kafka producer closed")
 
 
 if __name__ == "__main__":
