@@ -27,7 +27,7 @@ Kong is configured in **DB-less mode**. Instead of relying on a Postgres databas
 
 **All API endpoints protected by Kong require JWT authentication.**
 
-- **Token Source**: Keycloak (`http://localhost:8080/realms/prod-maintenance`)
+- **Token Source**: Keycloak (`http://localhost:8080/realms/pred`)
 - **Token Format**: `Authorization: Bearer <JWT_TOKEN>`
 - **Required Claims**: `exp` (expiration time)
 - **Algorithm**: RS256 (RSA Public Key from Keycloak)
@@ -66,7 +66,7 @@ Expected: `401 Unauthorized` with `{"message":"Unauthorized"}`
 To test with a valid JWT, obtain a token from Keycloak:
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:8080/realms/prod-maintenance/protocol/openid-connect/token \
+TOKEN=$(curl -s -X POST http://localhost:8080/realms/pred/protocol/openid-connect/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "client_id=web-frontend&client_secret=dev-web-frontend-secret&grant_type=client_credentials" | jq -r '.access_token')
 
@@ -120,7 +120,7 @@ You should see `Access-Control-Allow-Origin: http://localhost:3000` and `Access-
 
 1. Verify you're including the `Authorization: Bearer <TOKEN>` header
 2. Check that the token is not expired (`exp` claim)
-3. Verify the token was issued by the correct Keycloak realm (`prod-maintenance`)
+3. Verify the token was issued by the correct Keycloak realm (`pred`)
 4. Check Kong admin API to verify JWT plugin is attached to routes:
    ```bash
    curl http://localhost:8002/plugins | jq '.data[] | select(.name == "jwt")'
@@ -188,7 +188,7 @@ How it works:
 1. Kong starts in DB-less mode with **no declarative config file** — its initial
    runtime state is empty (Admin API up, no routes).
 2. The `kong-jwks-sync` sidecar polls Keycloak's JWKS endpoint
-   (`/realms/prod-maintenance/protocol/openid-connect/certs`) every
+   (`/realms/pred/protocol/openid-connect/certs`) every
    `POLL_INTERVAL` seconds (default 300s).
 3. It extracts the RS256 signing key, substitutes `__RSA_PUBLIC_KEY__` in
    `kong/kong.yml` (which is mounted into the sidecar, **not** into Kong), and

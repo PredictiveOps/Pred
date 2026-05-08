@@ -4,7 +4,7 @@ set -euo pipefail
 KC_URL="${KC_URL:-http://localhost:8080}"
 KC_ADMIN="${KC_ADMIN:-admin}"
 KC_ADMIN_PASSWORD="${KC_ADMIN_PASSWORD:-changeme}"
-KC_REALM="${KC_REALM:-prod-maintenance}"
+KC_REALM="${KC_REALM:-pred}"
 KC_CLIENT_ID="${KC_CLIENT_ID:-web-frontend}"
 KC_CLIENT_SECRET="${KC_CLIENT_SECRET:-dev-web-frontend-secret}"
 KC_REDIRECT_URI="${KC_REDIRECT_URI:-http://localhost:3000/api/auth/callback/keycloak}"

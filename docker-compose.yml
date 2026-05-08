@@ -132,7 +132,7 @@ services:
       KC_PROXY: edge
       KC_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KC_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
-      KC_REALM: ${KEYCLOAK_REALM:-prod-maintenance}
+      KC_REALM: ${KEYCLOAK_REALM:-pred}
       KC_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-web-frontend}
       KC_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
       KC_REDIRECT_URI: ${KEYCLOAK_REDIRECT_URI:-http://localhost:3000/api/auth/callback/keycloak}
@@ -160,7 +160,7 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-32-character-secret-key-here-change-in-production}
       KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-prod-maintenance}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-pred}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-web-frontend}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
     ports:
@@ -309,7 +309,7 @@ services:
     build:
       context: ./kong/jwks-sync
     environment:
-      - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/prod-maintenance/protocol/openid-connect/certs
+      - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/pred/protocol/openid-connect/certs
       - KONG_ADMIN_URL=http://kong:8001
       - POLL_INTERVAL=300
     volumes:

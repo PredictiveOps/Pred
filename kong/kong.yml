@@ -108,7 +108,7 @@ consumers:
 
 jwt_secrets:
   - consumer: keycloak-consumer
-    key: "http://localhost:8080/realms/prod-maintenance"
+    key: "http://localhost:8080/realms/pred"
     algorithm: RS256
     # Placeholder — replaced at runtime by the kong-jwks-sync sidecar with the
     # current Keycloak signing key, then POSTed to Kong's Admin API /config.

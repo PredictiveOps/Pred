@@ -11,7 +11,7 @@ set -euo pipefail
 
 KONG_PROXY="http://localhost:8000"
 KONG_ADMIN="http://localhost:8002"
-KEYCLOAK_TOKEN_URL="http://localhost:8080/realms/prod-maintenance/protocol/openid-connect/token"
+KEYCLOAK_TOKEN_URL="http://localhost:8080/realms/pred/protocol/openid-connect/token"
 
 WITH_AUTH=false
 for arg in "$@"; do
