@@ -5,7 +5,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
-      POSTGRES_MULTIPLE_DATABASES: ingestion_sim,events_sim
+      POSTGRES_MULTIPLE_DATABASES: ingestion_sim,events_sim,notifications_sim
     volumes:
       - ./postgres/init:/docker-entrypoint-initdb.d
       - postgres_sim_data:/var/lib/postgresql
@@ -135,6 +135,22 @@ services:
       - KAFKA_BROKERS=kafka:29092
       - ML_FEATURES_TOPIC=ml-features
       - ML_KAFKA_GROUP_ID=ml-service-sim
+    depends_on:
+      postgres-sim:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notifications-service:
+    build:
+      context: ./notifications-service
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres-sim:5432/notifications_sim
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC=notifications
+      - KAFKA_GROUP_ID=notifications-service-sim
+      - EMAIL_PROVIDER=stub
     depends_on:
       postgres-sim:
         condition: service_healthy
