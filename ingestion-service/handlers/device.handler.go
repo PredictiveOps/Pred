@@ -92,6 +92,11 @@ func GetDeviceByIDHandler(gdb *gorm.DB) gin.HandlerFunc {
 // GetDevicesByTenantIDHandler retrieves all devices (details) for a tenant.
 func GetDevicesByTenantIDHandler(gdb *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		for name, values := range c.Request.Header {
+			for _, value := range values {
+				log.Printf("header: %s=%s", name, value)
+			}
+		}
 		tenantIDParam := c.Param("tenant_id")
 		tenantID64, err := strconv.ParseUint(tenantIDParam, 10, 32)
 		if err != nil {
