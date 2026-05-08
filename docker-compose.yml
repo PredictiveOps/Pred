@@ -5,7 +5,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
-      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-notifications,events,ingestion,keycloak}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-notifications,events,ingestion,keycloak,predictions}
     ports:
       - "5433:5432"
     volumes:
@@ -214,9 +214,34 @@ services:
       - kong
       - keycloak
 
+  ml-service:
+    build:
+      context: ./ai-ml
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/predictions
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - MODEL_DIR=/app/artifacts/models
+      - LOG_LEVEL=INFO
+    ports:
+      - "8004:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ml_models:/app/artifacts/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 volumes:
   postgres_data:
   mosquitto_data:
   mosquitto_log:
   prometheus_data:
   redis_data:
+  ml_models:
