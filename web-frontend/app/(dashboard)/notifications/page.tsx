@@ -280,72 +280,72 @@ export default function Home() {
 	}, [notifications]);
 
 	return (
-		<div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.14),_transparent_30%),linear-gradient(180deg,_#08111f_0%,_#050816_100%)] text-white">
+		<div className="min-h-screen bg-gray-50 text-gray-900">
 			<main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-				<section className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-8">
+				<section className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
 					<div className="grid gap-8 lg:grid-cols-[1.4fr_0.9fr] lg:items-center">
 						<div className="space-y-6">
-							<div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-sm text-emerald-200">
+							<div className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm text-emerald-700">
 								<Sparkles className="size-4" />
 								Notification dashboard
 							</div>
 							<div className="space-y-3">
-								<h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+								<h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl">
 									Live alerts from the notification service.
 								</h1>
-								<p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
+								<p className="max-w-2xl text-base leading-7 text-gray-600 sm:text-lg">
 									Load saved notifications from the backend, inspect payloads,
 									and verify that the email + database flow is working end to
 									end.
 								</p>
 							</div>
 							<div className="grid gap-3 sm:grid-cols-3">
-								<Card className="border-white/10 bg-white/5 text-white">
+								<Card className="border-gray-200 bg-white">
 									<CardContent className="flex items-center gap-3 px-5 py-4">
-										<div className="rounded-2xl bg-cyan-400/15 p-3 text-cyan-200">
+										<div className="rounded-2xl bg-cyan-50 p-3 text-cyan-600">
 											<Bell className="size-5" />
 										</div>
 										<div>
 											<p className="text-2xl font-semibold">{stats.total}</p>
-											<p className="text-sm text-slate-300">Total alerts</p>
+											<p className="text-sm text-gray-500">Total alerts</p>
 										</div>
 									</CardContent>
 								</Card>
-								<Card className="border-white/10 bg-white/5 text-white">
+								<Card className="border-gray-200 bg-white">
 									<CardContent className="flex items-center gap-3 px-5 py-4">
-										<div className="rounded-2xl bg-emerald-400/15 p-3 text-emerald-200">
+										<div className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">
 											<Database className="size-5" />
 										</div>
 										<div>
 											<p className="text-2xl font-semibold">
 												{stats.emailCount}
 											</p>
-											<p className="text-sm text-slate-300">Email alerts</p>
+											<p className="text-sm text-gray-500">Email alerts</p>
 										</div>
 									</CardContent>
 								</Card>
-								<Card className="border-white/10 bg-white/5 text-white">
+								<Card className="border-gray-200 bg-white">
 									<CardContent className="flex items-center gap-3 px-5 py-4">
-										<div className="rounded-2xl bg-amber-400/15 p-3 text-amber-200">
+										<div className="rounded-2xl bg-amber-50 p-3 text-amber-600">
 											<AlertTriangle className="size-5" />
 										</div>
 										<div>
 											<p className="text-2xl font-semibold">
 												{stats.highRiskCount}
 											</p>
-											<p className="text-sm text-slate-300">High-risk alerts</p>
+											<p className="text-sm text-gray-500">High-risk alerts</p>
 										</div>
 									</CardContent>
 								</Card>
 							</div>
 						</div>
 
-						<Card className="border-white/10 bg-slate-950/70 text-white shadow-2xl shadow-black/30">
+						<Card className="border-gray-200 bg-white shadow-sm">
 							<CardHeader>
-								<CardTitle className="text-xl text-white">
+								<CardTitle className="text-xl text-gray-900">
 									Load alerts
 								</CardTitle>
-								<CardDescription className="text-slate-400">
+								<CardDescription className="text-gray-500">
 									Use a tenant ID and limit to query the notifications API.
 								</CardDescription>
 							</CardHeader>
@@ -357,12 +357,12 @@ export default function Home() {
 										void loadNotifications(tenantId, limit);
 									}}
 								>
-									<label className="grid gap-2 text-sm text-slate-300">
+									<label className="grid gap-2 text-sm text-gray-700">
 										Tenant ID
-										<div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 focus-within:border-emerald-400/60">
-											<Search className="size-4 text-slate-400" />
+										<div className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 focus-within:border-emerald-400">
+											<Search className="size-4 text-gray-400" />
 											<input
-												className="w-full bg-transparent text-white outline-none placeholder:text-slate-500"
+												className="w-full bg-transparent text-gray-900 outline-none placeholder:text-gray-400"
 												name="tenantId"
 												placeholder="factory1"
 												value={tenantId}
@@ -371,10 +371,10 @@ export default function Home() {
 										</div>
 									</label>
 
-									<label className="grid gap-2 text-sm text-slate-300">
+									<label className="grid gap-2 text-sm text-gray-700">
 										Limit
 										<input
-											className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-emerald-400/60"
+											className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none placeholder:text-gray-400 focus:border-emerald-400"
 											name="limit"
 											type="number"
 											min="1"
@@ -387,7 +387,7 @@ export default function Home() {
 									<div className="flex flex-wrap gap-3 pt-2">
 										<Button
 											type="submit"
-											className="bg-emerald-400 text-slate-950 hover:bg-emerald-300"
+											className="bg-emerald-500 text-white hover:bg-emerald-400"
 										>
 											<RefreshCcw className="size-4" />
 											{loading ? "Loading..." : "Refresh alerts"}
@@ -395,7 +395,7 @@ export default function Home() {
 										<Button
 											type="button"
 											variant="outline"
-											className="border-white/15 bg-white/5 text-white hover:bg-white/10"
+											className="border-gray-200 text-gray-700 hover:bg-gray-50"
 											onClick={() => {
 												setTenantId(DEFAULT_TENANT_ID);
 												setLimit("10");
@@ -408,12 +408,12 @@ export default function Home() {
 								</form>
 
 								{error ? (
-									<div className="rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+									<div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
 										{error}
 									</div>
 								) : null}
 
-								<div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+								<div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
 									<div className="flex items-center gap-2">
 										<Clock3 className="size-4" />
 										<span>
@@ -423,17 +423,17 @@ export default function Home() {
 										</span>
 									</div>
 									<div className="flex items-center gap-4">
-										<span className="text-slate-500">API: {API_BASE_URL}</span>
+										<span className="text-gray-400">API: {API_BASE_URL}</span>
 										<div className="flex items-center gap-1">
 											{wsConnected ? (
 												<>
-													<Wifi className="size-4 text-emerald-400" />
-													<span className="text-emerald-300">Live</span>
+													<Wifi className="size-4 text-emerald-500" />
+													<span className="text-emerald-600">Live</span>
 												</>
 											) : (
 												<>
-													<WifiOff className="size-4 text-slate-500" />
-													<span className="text-slate-400">Offline</span>
+													<WifiOff className="size-4 text-gray-400" />
+													<span className="text-gray-500">Offline</span>
 												</>
 											)}
 										</div>
@@ -446,8 +446,8 @@ export default function Home() {
 
 				<section className="grid gap-4">
 					{notifications.length === 0 && !loading ? (
-						<Card className="border-white/10 bg-white/5 text-white">
-							<CardContent className="px-6 py-10 text-center text-slate-300">
+						<Card className="border-gray-200 bg-white">
+							<CardContent className="px-6 py-10 text-center text-gray-500">
 								No alerts found for this tenant. Try a different tenant ID or
 								send a new Kafka event.
 							</CardContent>
@@ -463,15 +463,15 @@ export default function Home() {
 							return (
 								<Card
 									key={notification.id}
-									className="border-white/10 bg-white/5 text-white transition-transform duration-200 hover:-translate-y-1 hover:border-emerald-400/30 hover:bg-white/8"
+									className="border-gray-200 bg-white transition-transform duration-200 hover:-translate-y-1 hover:border-emerald-300 hover:shadow-md"
 								>
 									<CardHeader>
 										<div className="flex items-center justify-between gap-3">
 											<div>
-												<CardTitle className="text-lg text-white">
+												<CardTitle className="text-lg text-gray-900">
 													Notification #{notification.id}
 												</CardTitle>
-												<CardDescription className="text-slate-400">
+												<CardDescription className="text-gray-500">
 													Tenant {notification.tenant_id} •{" "}
 													{formatDate(notification.created_at)}
 												</CardDescription>
@@ -479,10 +479,10 @@ export default function Home() {
 											<span
 												className={`rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide ${
 													isEmail
-														? "bg-cyan-400/15 text-cyan-200"
+														? "bg-cyan-50 text-cyan-700"
 														: isPush
-															? "bg-emerald-400/15 text-emerald-200"
-															: "bg-white/10 text-slate-200"
+															? "bg-emerald-50 text-emerald-700"
+															: "bg-gray-100 text-gray-600"
 												}`}
 											>
 												{notification.type}
@@ -490,18 +490,18 @@ export default function Home() {
 										</div>
 									</CardHeader>
 									<CardContent className="space-y-4">
-										<p className="text-sm leading-6 text-slate-200">
+										<p className="text-sm leading-6 text-gray-700">
 											{summarizePayload(notification.payload)}
 										</p>
 
-										<div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
+										<div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
 											<pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-6">
 												{JSON.stringify(notification.payload, null, 2)}
 											</pre>
 										</div>
 
 										{probability !== null ? (
-											<div className="inline-flex items-center gap-2 rounded-full bg-amber-400/10 px-3 py-1 text-sm text-amber-200">
+											<div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-sm text-amber-700">
 												<AlertTriangle className="size-4" />
 												Failure probability: {Math.round(probability * 100)}%
 											</div>

@@ -72,21 +72,21 @@ export function AssetManagement() {
 			value: "1,242",
 			change: "+12.4%",
 			icon: TrendingUp,
-			color: "text-blue-400",
+			color: "text-blue-600",
 		},
 		{
 			label: "OFFLINE NODES",
 			value: "06",
 			change: "CRITICAL",
 			icon: AlertCircle,
-			color: "text-red-400",
+			color: "text-red-500",
 		},
 		{
 			label: "UPCOMING CALIBRATIONS",
 			value: "42",
 			change: "30 DAYS",
 			icon: Clock,
-			color: "text-orange-400",
+			color: "text-orange-500",
 		},
 		{
 			label: "DATA THROUGHPUT",
@@ -94,7 +94,7 @@ export function AssetManagement() {
 			unit: "GB/s",
 			change: "PEAK",
 			icon: TrendingUp,
-			color: "text-green-400",
+			color: "text-green-600",
 		},
 	];
 
@@ -104,12 +104,12 @@ export function AssetManagement() {
 			<div className="flex items-start justify-between mb-6">
 				<div>
 					<h1 className="text-3xl font-bold mb-2">Asset Management</h1>
-					<p className="text-slate-400 text-sm">
+					<p className="text-gray-500 text-sm">
 						Manage and monitor 1,248 connected industrial sensors across 4
 						nodes.
 					</p>
 				</div>
-				<Button className="bg-blue-600 hover:bg-blue-700 px-6 font-semibold uppercase text-sm flex items-center gap-2">
+				<Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 font-semibold uppercase text-sm flex items-center gap-2">
 					<Plus className="w-4 h-4" />
 					ADD NEW ASSET
 				</Button>
@@ -120,9 +120,9 @@ export function AssetManagement() {
 				{stats.map((stat, idx) => {
 					const Icon = stat.icon;
 					return (
-						<Card key={idx} className="bg-slate-800/50 border-slate-700 p-6">
+						<Card key={idx} className="bg-white border-gray-200 p-6">
 							<div className="flex justify-between items-start mb-4">
-								<div className="text-xs text-slate-400 font-semibold uppercase">
+								<div className="text-xs text-gray-500 font-semibold uppercase">
 									{stat.label}
 								</div>
 								<Icon className={`w-4 h-4 ${stat.color}`} />
@@ -146,17 +146,17 @@ export function AssetManagement() {
 			</div>
 
 			{/* Asset Repository */}
-			<Card className="bg-slate-800/50 border-slate-700 p-6">
+			<Card className="bg-white border-gray-200 p-6">
 				<div className="flex justify-between items-center mb-6">
-					<h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+					<h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
 						Asset Repository
 					</h2>
 					<div className="flex gap-3">
-						<Button className="bg-slate-700 hover:bg-slate-600 px-3 py-1 text-xs font-semibold flex items-center gap-2">
+						<Button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 text-xs font-semibold flex items-center gap-2">
 							<Filter className="w-3 h-3" />
 							Filter By Type
 						</Button>
-						<Button className="bg-slate-700 hover:bg-slate-600 px-3 py-1 text-xs font-semibold flex items-center gap-2">
+						<Button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 text-xs font-semibold flex items-center gap-2">
 							<ArrowUpDown className="w-3 h-3" />
 							Sort: Last Calibration
 						</Button>
@@ -167,23 +167,23 @@ export function AssetManagement() {
 				<div className="overflow-x-auto">
 					<table className="w-full">
 						<thead>
-							<tr className="border-b border-slate-700">
-								<th className="text-xs text-slate-400 font-semibold uppercase text-left py-3 px-4">
+							<tr className="border-b border-gray-200">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 									Asset Name / ID
 								</th>
-								<th className="text-xs text-slate-400 font-semibold uppercase text-left py-3 px-4">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 									Location
 								</th>
-								<th className="text-xs text-slate-400 font-semibold uppercase text-left py-3 px-4">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 									Sensor Type
 								</th>
-								<th className="text-xs text-slate-400 font-semibold uppercase text-left py-3 px-4">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 									Last Calibration
 								</th>
-								<th className="text-xs text-slate-400 font-semibold uppercase text-left py-3 px-4">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 									Connection Status
 								</th>
-								<th className="text-xs text-slate-400 font-semibold uppercase text-center py-3 px-4">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-center py-3 px-4">
 									Actions
 								</th>
 							</tr>
@@ -192,30 +192,30 @@ export function AssetManagement() {
 							{assets.map((asset, idx) => (
 								<tr
 									key={idx}
-									className="border-b border-slate-700 hover:bg-slate-900/30 transition-colors"
+									className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
 								>
 									<td className="py-4 px-4">
 										<div className="flex items-center gap-2">
-											<div className="w-2 h-2 bg-slate-500 rounded-full"></div>
+											<div className="w-2 h-2 bg-gray-400 rounded-full"></div>
 											<div>
-												<div className="text-sm font-semibold text-slate-200">
+												<div className="text-sm font-semibold text-gray-800">
 													{asset.name}
 												</div>
-												<div className="text-xs text-slate-400">{asset.id}</div>
+												<div className="text-xs text-gray-500">{asset.id}</div>
 											</div>
 										</div>
 									</td>
-									<td className="py-4 px-4 text-sm text-slate-300">
+									<td className="py-4 px-4 text-sm text-gray-600">
 										{asset.location}
 									</td>
 									<td className="py-4 px-4">
-										<span className="px-3 py-1 bg-slate-700 text-slate-300 text-xs font-semibold rounded">
+										<span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-semibold rounded">
 											{asset.sensorType}
 										</span>
 									</td>
-									<td className="py-4 px-4 text-sm text-slate-300">
+									<td className="py-4 px-4 text-sm text-gray-600">
 										{asset.lastCalibration === "CALIBRATION OVERDUE" ? (
-											<span className="text-red-400 font-semibold">
+											<span className="text-red-500 font-semibold">
 												{asset.lastCalibration}
 											</span>
 										) : (
@@ -234,8 +234,8 @@ export function AssetManagement() {
 											<span
 												className={`text-xs font-semibold ${
 													asset.connectionStatus === "ACTIVE"
-														? "text-green-400"
-														: "text-red-400"
+														? "text-green-600"
+														: "text-red-500"
 												}`}
 											>
 												{asset.connectionStatus}
@@ -245,9 +245,9 @@ export function AssetManagement() {
 									<td className="py-4 px-4 text-center">
 										<button
 											type="button"
-											className="p-1 hover:bg-slate-700 rounded transition-colors"
+											className="p-1 hover:bg-gray-100 rounded transition-colors"
 										>
-											<MoreVertical className="w-4 h-4 text-slate-400" />
+											<MoreVertical className="w-4 h-4 text-gray-400" />
 										</button>
 									</td>
 								</tr>
