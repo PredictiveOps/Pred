@@ -158,6 +158,40 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  web-frontend:
+    build:
+      context: ./web-frontend
+      target: builder
+    command: npm run dev
+    environment:
+      NODE_ENV: development
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-32-character-secret-key-here-change-in-production}
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KEYCLOAK_PUBLIC_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-pred}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-web-frontend}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
+    ports:
+      - "${WEB_FRONTEND_PORT:-3000}:3000"
+    restart: on-failure
+    volumes:
+      - ./web-frontend/app:/app/app
+      - ./web-frontend/components:/app/components
+      - ./web-frontend/lib:/app/lib
+      - ./web-frontend/hooks:/app/hooks
+      - ./web-frontend/public:/app/public
+      - ./web-frontend/next.config.ts:/app/next.config.ts
+    develop:
+      watch:
+        - action: rebuild
+          path: ./web-frontend/package.json
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   device-simulator:
     build:
       context: ./device-simulation
