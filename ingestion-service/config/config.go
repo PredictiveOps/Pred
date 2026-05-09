@@ -15,9 +15,9 @@ var RedisAddr, RedisPassword, RedisPubKeyTTL, RedisNonceTTL string
 var RedisDB int
 
 func LoadConfig() {
-	// Load .env if present; do not fail when it's missing (allow env-based configs)
-	if err := godotenv.Load(".env"); err != nil {
-		log.Printf(".env file not loaded (proceeding to env vars): %v", err)
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Println("No .env file found. Falling back to system environment variables.")
 	}
 
 	Port = os.Getenv("PORT")

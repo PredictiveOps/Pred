@@ -8,7 +8,7 @@ import (
 
 // FlushFunc is called with all readings collected during a closed window.
 // It is always invoked in its own goroutine so it never blocks the Kafka consumer.
-type FlushFunc func(tenantID, deviceID string, readings []SensorEvent)
+type FlushFunc func(tenantID string, deviceID string, readings []SensorEvent)
 
 // windowBuffer holds readings for a single device's current open window.
 type windowBuffer struct {
@@ -133,7 +133,7 @@ func (wm *WindowManager) dispatchFlush(deviceID string, buf *windowBuffer) {
 	copy(snapshot, buf.readings)
 	tenantID := buf.tenantID
 
-	log.Printf("[window] flushing device=%q tenant=%q readings=%d", deviceID, tenantID, len(snapshot))
+	log.Printf("[window] flushing device=%s tenant=%q readings=%d", deviceID, tenantID, len(snapshot))
 
 	go wm.onFlush(tenantID, deviceID, snapshot)
 }

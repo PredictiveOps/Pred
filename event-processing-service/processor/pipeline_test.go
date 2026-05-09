@@ -7,7 +7,8 @@ import (
 )
 
 // TestPipeline_WindowAggregatesAndSendsToML verifies the full path:
-//   WindowManager.Add  →  Compute  →  FeatureSink.Send
+//
+//	WindowManager.Add  →  Compute  →  FeatureSink.Send
 //
 // A short window (300ms) is used so the test completes quickly.
 func TestPipeline_WindowAggregatesAndSendsToML(t *testing.T) {
@@ -29,7 +30,7 @@ func TestPipeline_WindowAggregatesAndSendsToML(t *testing.T) {
 	// --- 3. Push 10 readings for one device ---
 	for i := 0; i < 10; i++ {
 		wm.Add(SensorEvent{
-			DeviceID: "MTR-01",
+			DeviceID: "1",
 			TenantID: "factory-a",
 			VRMS:     0.45 + float64(i)*0.01,
 			TempC:    52.0 + float64(i)*0.1,
@@ -42,8 +43,8 @@ func TestPipeline_WindowAggregatesAndSendsToML(t *testing.T) {
 	// --- 4. Wait for the window to flush (window + flusher tick + margin) ---
 	select {
 	case payload := <-requests:
-		if payload.DeviceID != "MTR-01" {
-			t.Errorf("DeviceID = %q, want MTR-01", payload.DeviceID)
+		if payload.DeviceID != "1" {
+			t.Errorf("DeviceID = %s, want 1", payload.DeviceID)
 		}
 		if payload.TenantID != "factory-a" {
 			t.Errorf("TenantID = %q, want factory-a", payload.TenantID)
@@ -99,8 +100,8 @@ func TestPipeline_MultipleDevicesFlushedIndependently(t *testing.T) {
 
 	// Feed events for two different devices.
 	for i := 0; i < 5; i++ {
-		wm.Add(SensorEvent{DeviceID: "MTR-01", TenantID: "t", VRMS: 0.4, TempC: 50})
-		wm.Add(SensorEvent{DeviceID: "MTR-02", TenantID: "t", VRMS: 0.6, TempC: 60})
+		wm.Add(SensorEvent{DeviceID: "1", TenantID: "t", VRMS: 0.4, TempC: 50})
+		wm.Add(SensorEvent{DeviceID: "2", TenantID: "t", VRMS: 0.6, TempC: 60})
 	}
 
 	seen := map[string]bool{}
@@ -109,7 +110,7 @@ func TestPipeline_MultipleDevicesFlushedIndependently(t *testing.T) {
 		select {
 		case id := <-flushed:
 			seen[id] = true
-			t.Logf("✓ flushed device %q", id)
+			t.Logf("✓ flushed device %s", id)
 		case <-timeout:
 			t.Fatalf("timed out; only flushed: %v", seen)
 		}

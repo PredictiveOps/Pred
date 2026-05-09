@@ -9,7 +9,7 @@ func makeReadings(vrms, temp, hz1, hz2, hz3 float64, n int) []SensorEvent {
 	readings := make([]SensorEvent, n)
 	for i := range readings {
 		readings[i] = SensorEvent{
-			DeviceID: "test-device",
+			DeviceID: "1",
 			TenantID: "test-tenant",
 			VRMS:     vrms,
 			TempC:    temp,
@@ -106,7 +106,7 @@ func TestCompute_TemperatureBearing(t *testing.T) {
 	readings := make([]SensorEvent, 10)
 	for i := range readings {
 		readings[i] = SensorEvent{
-			DeviceID: "d",
+			DeviceID: "1",
 			TenantID: "t",
 			VRMS:     0.5,
 			TempC:    float64(50 + i),

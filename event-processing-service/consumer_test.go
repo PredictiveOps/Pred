@@ -56,7 +56,7 @@ func TestHandleMessage_InsertsEvent(t *testing.T) {
 
 	body := map[string]any{
 		"tenant_id": "t-events",
-		"device_id": "MTR-01",
+		"device_id": 1,
 		"v_rms":     0.45,
 		"temp_c":    52.3,
 		"peak_hz_1": 120,
