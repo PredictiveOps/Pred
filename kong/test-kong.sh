@@ -11,7 +11,8 @@ set -euo pipefail
 
 KONG_PROXY="http://localhost:8000"
 KONG_ADMIN="http://localhost:8002"
-KEYCLOAK_TOKEN_URL="http://localhost:8080/realms/pred/protocol/openid-connect/token"
+KEYCLOAK_REALM="${KEYCLOAK_REALM:-pred}"
+KEYCLOAK_TOKEN_URL="http://localhost:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token"
 
 WITH_AUTH=false
 for arg in "$@"; do
@@ -175,26 +176,78 @@ if $WITH_AUTH; then
   echo ""
   echo "-- JWT round-trip (requires Keycloak)"
 
-  TOKEN=$(curl -s -X POST "$KEYCLOAK_TOKEN_URL" \
-    -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "client_id=web-frontend&client_secret=dev-web-frontend-secret&grant_type=client_credentials" \
-    | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token',''))")
-
-  if [[ -z "$TOKEN" ]]; then
-    fail "Could not obtain JWT from Keycloak"
+  realm_status=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/realms/${KEYCLOAK_REALM}")
+  if [[ "$realm_status" != "200" ]]; then
+    fail "Keycloak realm '${KEYCLOAK_REALM}' not reachable (HTTP ${realm_status}). Create it (see keycloak/configure.sh), or export KEYCLOAK_REALM to match your DB and set kong/kong.yml jwt_secrets.key + docker-compose KEYCLOAK_JWKS_URL to the same realm iss."
   else
-    pass "Obtained JWT from Keycloak"
+    pass "Keycloak realm '${KEYCLOAK_REALM}' exists"
 
-    for path in /api/events /api/ingest/health; do
-      status=$(curl -s -o /dev/null -w "%{http_code}" \
-        "$KONG_PROXY$path" -H "Authorization: Bearer $TOKEN")
-      # Upstream may not be running; 502/503 is still a Kong success (auth passed)
-      if [[ "$status" == "200" || "$status" == "501" || "$status" == "502" || "$status" == "503" ]]; then
-        pass "Valid JWT accepted on $path (upstream status $status)"
-      else
-        fail "Valid JWT not accepted on $path (got $status)"
-      fi
+    # Keycloak can take a few seconds after (re)start before the realm/client is ready.
+    TOKEN=""
+    for _ in $(seq 1 10); do
+      TOKEN=$(curl -s -X POST "$KEYCLOAK_TOKEN_URL" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "client_id=web-frontend&client_secret=dev-web-frontend-secret&grant_type=client_credentials" \
+        | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token',''))" || true)
+      [[ -n "$TOKEN" ]] && break
+      sleep 1
     done
+
+    if [[ -z "$TOKEN" ]]; then
+      fail "Could not obtain JWT from Keycloak"
+    else
+      pass "Obtained JWT from Keycloak"
+
+      # JWT must carry tenant_id (same claim Kong copies to X-Tenant-Id).
+      TENANT_IN_TOKEN=$(printf '%s' "$TOKEN" | python3 -c "
+import json, base64, sys
+t = sys.stdin.read().strip()
+parts = t.split('.')
+if len(parts) != 3:
+    sys.exit(1)
+seg = parts[1].replace('-', '+').replace('_', '/')
+pad = (4 - len(seg) % 4) % 4
+seg += '=' * pad
+payload = json.loads(base64.b64decode(seg))
+tid = payload.get('tenant_id')
+if tid is None or tid == '':
+    sys.exit(1)
+print(tid)
+" 2>/dev/null) || TENANT_IN_TOKEN=""
+      if [[ -n "$TENANT_IN_TOKEN" ]]; then
+        pass "JWT payload includes tenant_id ($TENANT_IN_TOKEN)"
+      else
+        fail "JWT payload missing tenant_id (Kong will return 403 for API routes)"
+      fi
+
+      for path in /api/events /api/ingest/health; do
+        status=$(curl -s -o /dev/null -w "%{http_code}" \
+          "$KONG_PROXY$path" -H "Authorization: Bearer $TOKEN")
+        # Upstream may not be running; 502/503 is still a Kong success (auth passed)
+        if [[ "$status" == "200" || "$status" == "501" || "$status" == "502" || "$status" == "503" ]]; then
+          pass "Valid JWT accepted on $path (upstream status $status)"
+        else
+          fail "Valid JWT not accepted on $path (got $status)"
+        fi
+      done
+
+      # Prove Kong forwards X-Tenant-Id when the request reaches ingestion (device handler logs all headers).
+      devices_status=$(curl -s -o /dev/null -w "%{http_code}" \
+        "$KONG_PROXY/api/ingest/tenants/1/devices" -H "Authorization: Bearer $TOKEN")
+      if [[ "$devices_status" == "503" || "$devices_status" == "502" ]]; then
+        pass "X-Tenant-Id forwarding check skipped (ingestion unreachable via Kong, status $devices_status)"
+      elif docker compose -f "$(dirname "$0")/../docker-compose.yml" ps ingestion-service 2>/dev/null | grep -q "Up"; then
+        sleep 1
+        if docker compose -f "$(dirname "$0")/../docker-compose.yml" logs ingestion-service 2>/dev/null \
+          | tail -80 | grep -qiE 'header:.*x-tenant-id'; then
+          pass "Ingestion logs show X-Tenant-Id (Kong forwarded tenant from JWT)"
+        else
+          fail "Ingestion logs missing X-Tenant-Id after proxied request (status $devices_status)"
+        fi
+      else
+        pass "X-Tenant-Id forwarding check skipped (ingestion-service container not running)"
+      fi
+    fi
   fi
 fi
 

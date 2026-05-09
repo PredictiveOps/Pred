@@ -13,6 +13,7 @@ TEST_USERNAME="${TEST_USERNAME:-testuser}"
 TEST_USER_EMAIL="${TEST_USER_EMAIL:-test@example.com}"
 TEST_USER_PASSWORD="${TEST_USER_PASSWORD:-Test123!}"
 TEST_USER_TENANT="${TEST_USER_TENANT:-tenant-001}"
+SERVICE_ACCOUNT_TENANT="${SERVICE_ACCOUNT_TENANT:-tenant-001}"
 
 KCADM=/opt/keycloak/bin/kcadm.sh
 
@@ -117,6 +118,20 @@ if [ -z "${MAPPER_ID:-}" ]; then
     -s 'config."userinfo.token.claim"=true'
 else
   log "'tenant_id' protocol mapper already exists on client (${MAPPER_ID})"
+fi
+
+# Ensure the client-credentials token (service account) also contains tenant_id.
+# Keycloak models the service account as a user; we set the user attribute that
+# the mapper reads from.
+SERVICE_ACCOUNT_USER_ID=$("$KCADM" get "clients/${CLIENT_UUID}/service-account-user" -r "$KC_REALM" \
+  --fields id --format csv --noquotes 2>/dev/null | tail -n +1 | head -n 1 || true)
+
+if [ -n "${SERVICE_ACCOUNT_USER_ID:-}" ]; then
+  log "setting service-account tenant_id=${SERVICE_ACCOUNT_TENANT}"
+  "$KCADM" update "users/${SERVICE_ACCOUNT_USER_ID}" -r "$KC_REALM" \
+    -s "attributes.tenant_id=[\"${SERVICE_ACCOUNT_TENANT}\"]" >/dev/null
+else
+  log "could not locate service-account user for client '${KC_CLIENT_ID}'"
 fi
 
 # --- test user ---
