@@ -3,45 +3,15 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 
-	"github.com/segmentio/kafka-go"
-	"gorm.io/gorm"
-
 	"notifications-service/db"
+
+	"testutil"
 )
 
-func openTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("TEST_DATABASE_URL not set; skipping consumer integration tests")
-	}
-	ctx := context.Background()
-	gdb, err := db.Open(ctx, url)
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
-	}
-	t.Cleanup(func() {
-		if sqlDB, err := gdb.DB(); err == nil {
-			sqlDB.Close()
-		}
-	})
-	return gdb
-}
-
-func makeMessage(t *testing.T, v any) kafka.Message {
-	t.Helper()
-	b, err := json.Marshal(v)
-	if err != nil {
-		t.Fatalf("marshal message: %v", err)
-	}
-	return kafka.Message{Value: b}
-}
-
 func TestHandleMessage_Email(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	event := AlertEvent{
@@ -54,7 +24,7 @@ func TestHandleMessage_Email(t *testing.T) {
 		},
 	}
 
-	if err := handleMessage(ctx, gdb, nil, makeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -76,7 +46,7 @@ func TestHandleMessage_Email(t *testing.T) {
 }
 
 func TestHandleMessage_Push(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	// Seed device tokens.
@@ -105,7 +75,7 @@ func TestHandleMessage_Push(t *testing.T) {
 		},
 	}
 
-	if err := handleMessage(ctx, gdb, nil, makeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -130,7 +100,7 @@ func TestHandleMessage_Push(t *testing.T) {
 }
 
 func TestHandleMessage_UnknownType(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	event := AlertEvent{
@@ -140,17 +110,17 @@ func TestHandleMessage_UnknownType(t *testing.T) {
 		Recipients: []Recipient{{UserID: "u1"}},
 	}
 
-	err := handleMessage(ctx, gdb, nil, makeMessage(t, event))
+	err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event))
 	if err == nil {
 		t.Fatal("expected error for unknown notification type, got nil")
 	}
 }
 
 func TestHandleMessage_InvalidJSON(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
-	msg := kafka.Message{Value: []byte(`not valid json`)}
+	msg := testutil.MakeMessage(t, []byte(`not valid json`))
 	err := handleMessage(ctx, gdb, nil, msg)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
@@ -158,7 +128,7 @@ func TestHandleMessage_InvalidJSON(t *testing.T) {
 }
 
 func TestHandleMessage_MissingTenantID(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	event := AlertEvent{
@@ -166,14 +136,14 @@ func TestHandleMessage_MissingTenantID(t *testing.T) {
 		Payload:    json.RawMessage(`{}`),
 		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
 	}
-	err := handleMessage(ctx, gdb, nil, makeMessage(t, event))
+	err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event))
 	if err == nil {
 		t.Fatal("expected error for missing tenant_id, got nil")
 	}
 }
 
 func TestHandleMessage_EmptyRecipients(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	event := AlertEvent{
@@ -182,14 +152,14 @@ func TestHandleMessage_EmptyRecipients(t *testing.T) {
 		Payload:    json.RawMessage(`{}`),
 		Recipients: []Recipient{},
 	}
-	err := handleMessage(ctx, gdb, nil, makeMessage(t, event))
+	err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event))
 	if err == nil {
 		t.Fatal("expected error for empty recipients, got nil")
 	}
 }
 
 func TestHandleMessage_LowFailureProbability(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 	t.Setenv("FAILURE_THRESHOLD", "0.9")
 
@@ -199,7 +169,7 @@ func TestHandleMessage_LowFailureProbability(t *testing.T) {
 		Payload:    json.RawMessage(`{"failure_probability":0.5}`),
 		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, makeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -211,9 +181,17 @@ func TestHandleMessage_LowFailureProbability(t *testing.T) {
 }
 
 func TestHandleMessage_HighFailureProbability(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 	t.Setenv("FAILURE_THRESHOLD", "0.8")
+	t.Cleanup(func() {
+		var notifIDs []uint
+		gdb.Model(&db.Notification{}).Where("tenant_id = ?", "t-high-prob").Pluck("id", &notifIDs)
+		if len(notifIDs) > 0 {
+			gdb.Where("notification_id IN ?", notifIDs).Delete(&db.NotificationDelivery{})
+		}
+		gdb.Where("tenant_id = ?", "t-high-prob").Delete(&db.Notification{})
+	})
 
 	event := AlertEvent{
 		TenantID:   "t-high-prob",
@@ -221,7 +199,7 @@ func TestHandleMessage_HighFailureProbability(t *testing.T) {
 		Payload:    json.RawMessage(`{"failure_probability":0.95}`),
 		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, makeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -233,7 +211,7 @@ func TestHandleMessage_HighFailureProbability(t *testing.T) {
 }
 
 func TestHandleMessage_EmailSkipsEmptyAddress(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	event := AlertEvent{
@@ -245,7 +223,7 @@ func TestHandleMessage_EmailSkipsEmptyAddress(t *testing.T) {
 			{UserID: "u2", Email: ""},
 		},
 	}
-	if err := handleMessage(ctx, gdb, nil, makeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -265,7 +243,7 @@ func TestHandleMessage_EmailSkipsEmptyAddress(t *testing.T) {
 }
 
 func TestHandleMessage_PushNoDeviceTokens(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	event := AlertEvent{
@@ -274,7 +252,7 @@ func TestHandleMessage_PushNoDeviceTokens(t *testing.T) {
 		Payload:    json.RawMessage(`{"title":"Alert"}`),
 		Recipients: []Recipient{{UserID: "u-no-token"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, makeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -291,7 +269,7 @@ func TestHandleMessage_PushNoDeviceTokens(t *testing.T) {
 }
 
 func TestHandleMessage_PushMultipleTokensPerUser(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	tokens := []db.DeviceToken{
@@ -315,7 +293,7 @@ func TestHandleMessage_PushMultipleTokensPerUser(t *testing.T) {
 		Payload:    json.RawMessage(`{"title":"Multi"}`),
 		Recipients: []Recipient{{UserID: "u20"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, makeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -351,6 +329,194 @@ func TestNormalizeKafkaMessage(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleMessage_BroadcastsToCorrectTenant(t *testing.T) {
+	gdb := testutil.OpenTestDB(t, db.Open)
+	ctx := context.Background()
+
+	hub := NewHub()
+	target := newTestClient("ws-tenant-A", 4)
+	target.hub = hub
+	other := newTestClient("ws-tenant-B", 4)
+	other.hub = hub
+	hub.Register("ws-tenant-A", target)
+	hub.Register("ws-tenant-B", other)
+	t.Cleanup(func() {
+		hub.Unregister("ws-tenant-A", target)
+		hub.Unregister("ws-tenant-B", other)
+	})
+
+	tenantID := "ws-tenant-A"
+	t.Cleanup(func() {
+		var notifIDs []uint
+		gdb.Model(&db.Notification{}).Where("tenant_id = ?", tenantID).Pluck("id", &notifIDs)
+		if len(notifIDs) > 0 {
+			gdb.Where("notification_id IN ?", notifIDs).Delete(&db.NotificationDelivery{})
+		}
+		gdb.Where("tenant_id = ?", tenantID).Delete(&db.Notification{})
+	})
+
+	event := AlertEvent{
+		TenantID:   tenantID,
+		Type:       "email",
+		Payload:    json.RawMessage(`{"subject":"Alert"}`),
+		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
+	}
+	if err := handleMessage(ctx, gdb, hub, testutil.MakeMessage(t, event)); err != nil {
+		t.Fatalf("handleMessage: %v", err)
+	}
+
+	select {
+	case msg := <-target.send:
+		if len(msg) == 0 {
+			t.Error("broadcast message to target tenant should not be empty")
+		}
+	default:
+		t.Error("expected broadcast to ws-tenant-A client, got nothing")
+	}
+
+	select {
+	case msg := <-other.send:
+		t.Errorf("ws-tenant-B should not receive ws-tenant-A broadcast, got %q", msg)
+	default:
+		// expected
+	}
+}
+
+// TestCrossService_AlertEventFlow simulates the event-processing-service publishing
+// an AlertEvent to the notifications Kafka topic (high failure_probability anomaly
+// detected by the ML pipeline) and verifies that notifications-service processes it
+// end-to-end: correct DB rows written and WebSocket hub receives the broadcast.
+func TestCrossService_AlertEventFlow(t *testing.T) {
+	gdb := testutil.OpenTestDB(t, db.Open)
+	ctx := context.Background()
+
+	tenantID := "xs-tenant-1"
+
+	// Seed push tokens so the push variant creates deliveries.
+	tokens := []db.DeviceToken{
+		{TenantID: tenantID, UserID: "xs-u1", Token: "xs-tok-ios", Platform: "ios"},
+		{TenantID: tenantID, UserID: "xs-u2", Token: "xs-tok-android", Platform: "android"},
+	}
+	for i := range tokens {
+		if err := gdb.Create(&tokens[i]).Error; err != nil {
+			t.Fatalf("seed token: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		for _, tok := range tokens {
+			gdb.Delete(&db.DeviceToken{}, tok.ID)
+		}
+		var notifIDs []uint
+		gdb.Model(&db.Notification{}).Where("tenant_id = ?", tenantID).Pluck("id", &notifIDs)
+		if len(notifIDs) > 0 {
+			gdb.Where("notification_id IN ?", notifIDs).Delete(&db.NotificationDelivery{})
+		}
+		gdb.Where("tenant_id = ?", tenantID).Delete(&db.Notification{})
+	})
+
+	hub := NewHub()
+	wsClient := newTestClient(tenantID, 4)
+	wsClient.hub = hub
+	hub.Register(tenantID, wsClient)
+	t.Cleanup(func() { hub.Unregister(tenantID, wsClient) })
+
+	// This payload mirrors what the event-processing ML pipeline would publish:
+	// device_id + failure_probability above threshold triggers an alert.
+	t.Setenv("FAILURE_THRESHOLD", "0.8")
+	alertPayload := json.RawMessage(`{"device_id":"motor-42","failure_probability":0.93,"temp_c":87.2,"v_rms":3.1}`)
+
+	t.Run("email", func(t *testing.T) {
+		event := AlertEvent{
+			TenantID: tenantID,
+			Type:     "email",
+			Payload:  alertPayload,
+			Recipients: []Recipient{
+				{UserID: "xs-u1", Email: "u1@example.com"},
+				{UserID: "xs-u2", Email: "u2@example.com"},
+			},
+		}
+		if err := handleMessage(ctx, gdb, hub, testutil.MakeMessage(t, event)); err != nil {
+			t.Fatalf("handleMessage: %v", err)
+		}
+
+		var notif db.Notification
+		if err := gdb.Where("tenant_id = ? AND type = ?", tenantID, "email").Last(&notif).Error; err != nil {
+			t.Fatalf("notification row: %v", err)
+		}
+
+		var deliveries []db.NotificationDelivery
+		gdb.Where("notification_id = ?", notif.ID).Find(&deliveries)
+		if len(deliveries) != 2 {
+			t.Fatalf("delivery count: got %d, want 2", len(deliveries))
+		}
+		for _, d := range deliveries {
+			if d.Status != "delivered" {
+				t.Errorf("delivery %d status: got %q, want delivered", d.ID, d.Status)
+			}
+		}
+
+		select {
+		case msg := <-wsClient.send:
+			var wsMsg WSMessage
+			if err := json.Unmarshal(msg, &wsMsg); err != nil {
+				t.Fatalf("unmarshal ws message: %v", err)
+			}
+			if wsMsg.Type != "new_notification" {
+				t.Errorf("ws message type: got %q, want new_notification", wsMsg.Type)
+			}
+		default:
+			t.Error("expected WebSocket broadcast, got none")
+		}
+	})
+
+	t.Run("push", func(t *testing.T) {
+		event := AlertEvent{
+			TenantID: tenantID,
+			Type:     "push",
+			Payload:  alertPayload,
+			Recipients: []Recipient{
+				{UserID: "xs-u1"},
+				{UserID: "xs-u2"},
+			},
+		}
+		if err := handleMessage(ctx, gdb, hub, testutil.MakeMessage(t, event)); err != nil {
+			t.Fatalf("handleMessage: %v", err)
+		}
+
+		var notif db.Notification
+		if err := gdb.Where("tenant_id = ? AND type = ?", tenantID, "push").Last(&notif).Error; err != nil {
+			t.Fatalf("notification row: %v", err)
+		}
+
+		var deliveries []db.NotificationDelivery
+		gdb.Where("notification_id = ?", notif.ID).Find(&deliveries)
+		if len(deliveries) != 2 {
+			t.Fatalf("delivery count: got %d, want 2 (one per device token)", len(deliveries))
+		}
+		for _, d := range deliveries {
+			if d.Status != "delivered" {
+				t.Errorf("delivery %d status: got %q, want delivered", d.ID, d.Status)
+			}
+			if d.DeviceTokenID == nil {
+				t.Errorf("delivery %d: DeviceTokenID should be set for push", d.ID)
+			}
+		}
+
+		select {
+		case msg := <-wsClient.send:
+			var wsMsg WSMessage
+			if err := json.Unmarshal(msg, &wsMsg); err != nil {
+				t.Fatalf("unmarshal ws message: %v", err)
+			}
+			if wsMsg.Type != "new_notification" {
+				t.Errorf("ws message type: got %q, want new_notification", wsMsg.Type)
+			}
+		default:
+			t.Error("expected WebSocket broadcast, got none")
+		}
+	})
 }
 
 func TestFailureThreshold(t *testing.T) {

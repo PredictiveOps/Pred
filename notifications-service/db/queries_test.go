@@ -2,35 +2,15 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
-	"gorm.io/gorm"
-
 	"notifications-service/db"
+
+	"testutil"
 )
 
-func openTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("TEST_DATABASE_URL not set; skipping DB integration tests")
-	}
-	ctx := context.Background()
-	gdb, err := db.Open(ctx, url)
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
-	}
-	t.Cleanup(func() {
-		if sqlDB, err := gdb.DB(); err == nil {
-			sqlDB.Close()
-		}
-	})
-	return gdb
-}
-
 func TestInsertNotification(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	payload := []byte(`{"title":"hello","body":"world"}`)
@@ -55,7 +35,7 @@ func TestInsertNotification(t *testing.T) {
 }
 
 func TestInsertDelivery(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	notifID, err := db.InsertNotification(ctx, gdb, "tenant-2", "email", []byte(`{}`))
@@ -87,7 +67,7 @@ func TestInsertDelivery(t *testing.T) {
 }
 
 func TestUpdateDeliveryStatus(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	notifID, err := db.InsertNotification(ctx, gdb, "tenant-3", "push", []byte(`{}`))
@@ -128,8 +108,68 @@ func TestUpdateDeliveryStatus(t *testing.T) {
 	})
 }
 
+func TestGetNotifications(t *testing.T) {
+	gdb := testutil.OpenTestDB(t, db.Open)
+	ctx := context.Background()
+
+	// Insert 3 notifications for tenant A (in order so created_at differs).
+	var insertedIDs []int64
+	for i, typ := range []string{"email", "push", "email"} {
+		id, err := db.InsertNotification(ctx, gdb, "tenant-gn-a", typ, []byte(`{"i":`+string(rune('0'+i))+`}`))
+		if err != nil {
+			t.Fatalf("InsertNotification %d: %v", i, err)
+		}
+		insertedIDs = append(insertedIDs, id)
+	}
+	// Insert 1 notification for tenant B.
+	if _, err := db.InsertNotification(ctx, gdb, "tenant-gn-b", "push", []byte(`{}`)); err != nil {
+		t.Fatalf("InsertNotification tenant-b: %v", err)
+	}
+
+	t.Run("tenant isolation", func(t *testing.T) {
+		got, err := db.GetNotifications(ctx, gdb, "tenant-gn-a", 10)
+		if err != nil {
+			t.Fatalf("GetNotifications: %v", err)
+		}
+		if len(got) != 3 {
+			t.Fatalf("count: got %d, want 3", len(got))
+		}
+		for _, n := range got {
+			if n.TenantID != "tenant-gn-a" {
+				t.Errorf("cross-tenant leak: got tenant_id %q", n.TenantID)
+			}
+		}
+	})
+
+	t.Run("descending order", func(t *testing.T) {
+		got, err := db.GetNotifications(ctx, gdb, "tenant-gn-a", 10)
+		if err != nil {
+			t.Fatalf("GetNotifications: %v", err)
+		}
+		for i := 1; i < len(got); i++ {
+			if got[i].CreatedAt.After(got[i-1].CreatedAt) {
+				t.Errorf("not DESC at index %d: %v > %v", i, got[i].CreatedAt, got[i-1].CreatedAt)
+			}
+		}
+		// Most-recently inserted row should come first.
+		if got[0].ID != insertedIDs[len(insertedIDs)-1] {
+			t.Errorf("first row ID: got %d, want %d", got[0].ID, insertedIDs[len(insertedIDs)-1])
+		}
+	})
+
+	t.Run("limit", func(t *testing.T) {
+		got, err := db.GetNotifications(ctx, gdb, "tenant-gn-a", 2)
+		if err != nil {
+			t.Fatalf("GetNotifications: %v", err)
+		}
+		if len(got) != 2 {
+			t.Errorf("count with limit=2: got %d, want 2", len(got))
+		}
+	})
+}
+
 func TestDeviceTokensForUsers(t *testing.T) {
-	gdb := openTestDB(t)
+	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
 	tokens := []db.DeviceToken{

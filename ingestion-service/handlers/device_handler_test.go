@@ -43,6 +43,8 @@ func newTestRouter(gdb *gorm.DB) *gin.Engine {
 	r.POST("/devices/register", handlers.RegisterDeviceHTTP(gdb))
 	r.GET("/tenants/:tenant_id/devices", handlers.GetDevicesByTenantIDHandler(gdb))
 	r.GET("/devices/:device_id", handlers.GetDeviceByIDHandler(gdb))
+	r.PUT("/devices/:device_id/status", handlers.UpdateDeviceActiveStatusHandler(gdb))
+	r.DELETE("/devices/:device_id", handlers.DeleteDeviceHandler(gdb))
 	return r
 }
 
@@ -200,5 +202,99 @@ func TestGetDeviceByID_InvalidID(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+// --- UpdateDeviceActiveStatusHandler ---
+
+func TestUpdateDeviceStatus_InvalidDeviceID(t *testing.T) {
+	body := `{"is_active":true}`
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPut, "/devices/abc/status", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	newTestRouter(nil).ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestUpdateDeviceStatus_InvalidJSON(t *testing.T) {
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPut, "/devices/1/status", bytes.NewBufferString("not-json"))
+	req.Header.Set("Content-Type", "application/json")
+	newTestRouter(nil).ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestUpdateDeviceStatus_Success(t *testing.T) {
+	gdb := openTestDB(t)
+
+	device := db.Device{DeviceID: 70061, TenantID: 7006}
+	if err := gdb.Create(&device).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	t.Cleanup(func() { gdb.Delete(&db.Device{}, "device_id = ?", device.DeviceID) })
+
+	body := `{"is_active":true}`
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPut, fmt.Sprintf("/devices/%d/status", device.DeviceID), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	newTestRouter(gdb).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+}
+
+// --- DeleteDeviceHandler ---
+
+func TestDeleteDevice_InvalidDeviceID(t *testing.T) {
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodDelete, "/devices/abc", nil)
+	newTestRouter(nil).ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestDeleteDevice_Success(t *testing.T) {
+	gdb := openTestDB(t)
+
+	device := db.Device{DeviceID: 70071, TenantID: 7007}
+	if err := gdb.Create(&device).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/devices/%d", device.DeviceID), nil)
+	newTestRouter(gdb).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	// Confirm it is gone.
+	var count int64
+	gdb.Model(&db.Device{}).Where("device_id = ?", device.DeviceID).Count(&count)
+	if count != 0 {
+		t.Errorf("device still exists after deletion")
+	}
+}
+
+func TestDeleteDevice_NotFound(t *testing.T) {
+	openTestDB(t)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodDelete, "/devices/999999998", nil)
+	newTestRouter(nil).ServeHTTP(w, req)
+
+	// Handler maps ErrRecordNotFound to 500 (no special-case for delete not-found).
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusInternalServerError)
 	}
 }
