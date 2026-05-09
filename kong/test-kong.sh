@@ -294,21 +294,18 @@ print(tid)
         fi
       done
 
-      # Prove Kong forwards X-Tenant-Id when the request reaches ingestion (device handler logs all headers).
+      # Prove Kong forwards X-Tenant-Id: GET /devices returns 400 when the header
+      # is absent and 200 when it is present, so the response code is the signal.
       devices_status=$(curl -s -o /dev/null -w "%{http_code}" \
-        "$KONG_PROXY/api/ingest/tenants/1/devices" -H "Authorization: Bearer $TOKEN")
-      if [[ "$devices_status" == "503" || "$devices_status" == "502" ]]; then
+        "$KONG_PROXY/api/ingest/devices" -H "Authorization: Bearer $TOKEN")
+      if [[ "$devices_status" == "502" || "$devices_status" == "503" ]]; then
         pass "X-Tenant-Id forwarding check skipped (ingestion unreachable via Kong, status $devices_status)"
-      elif docker compose -f "$(dirname "$0")/../docker-compose.yml" ps ingestion-service 2>/dev/null | grep -q "Up"; then
-        sleep 1
-        if docker compose -f "$(dirname "$0")/../docker-compose.yml" logs ingestion-service 2>/dev/null \
-          | tail -80 | grep -qiE 'header:.*x-tenant-id'; then
-          pass "Ingestion logs show X-Tenant-Id (Kong forwarded tenant from JWT)"
-        else
-          fail "Ingestion logs missing X-Tenant-Id after proxied request (status $devices_status)"
-        fi
+      elif [[ "$devices_status" == "200" ]]; then
+        pass "X-Tenant-Id forwarded: GET /api/ingest/devices returned 200"
+      elif [[ "$devices_status" == "400" ]]; then
+        fail "X-Tenant-Id not forwarded: GET /api/ingest/devices returned 400 (header missing)"
       else
-        pass "X-Tenant-Id forwarding check skipped (ingestion-service container not running)"
+        fail "X-Tenant-Id forwarding check: unexpected status $devices_status"
       fi
     fi
   fi
