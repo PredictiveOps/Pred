@@ -11,31 +11,55 @@ Devices send **cryptographically signed** sensor telemetry via MQTT to `devices/
 
 ## Payload Structure
 
+Devices send a JSON envelope containing sensor data, a cryptographic signature, and metadata:
+
+**Without timestamp (recommended for devices without RTC):**
 ```json
 {
-  "timestamp": 1704067200,
-  "nonce": "unique-per-message",
+  "nonce": "n-1234567890",
   "data": {
     "mode": "normal",
+    "v_rms": 1.23,
+    "temp_c": 72.4,
     "peak_hz_1": 50,
     "peak_hz_2": 100,
     "peak_hz_3": 150,
-    "status": "ok",
-    "temp_c": 72.4,
-    "v_rms": 1.23
+    "status": "ok"
   },
   "signature": "BASE64_ENCODED_ECDSA_SIGNATURE"
 }
 ```
 
-### Field Descriptions
+**With timestamp (optional, for devices with accurate RTC):**
+```json
+{
+  "timestamp": 1704067200,
+  "nonce": "n-1234567890",
+  "data": {
+    "mode": "normal",
+    "v_rms": 1.23,
+    "temp_c": 72.4,
+    "peak_hz_1": 50,
+    "peak_hz_2": 100,
+    "peak_hz_3": 150,
+    "status": "ok"
+  },
+  "signature": "BASE64_ENCODED_ECDSA_SIGNATURE"
+}
+```
 
-| Field | Type | Required | Notes |
-|-------|------|----------|-------|
-| `timestamp` | int64 | ✓ | Unix timestamp (seconds since epoch) |
-| `nonce` | string | ✓ | Unique ID per message; reusing within 60s is rejected (replay protection) |
-| `data` | object | ✓ | Sensor readings (see schema below) |
-| `signature` | string | ✓ | Base64-encoded ECDSA ASN.1 signature over raw bytes of `data` |
+**Note:** The `timestamp` field is optional. If not provided by the device, the ingestion service will automatically add a server-generated timestamp when the message is received.
+
+## Field Descriptions
+
+### Envelope Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `timestamp` | integer (Unix timestamp, seconds) | No | Unix timestamp when the payload was generated. If omitted, server will assign timestamp at reception time |
+| `nonce` | string | Yes | Unique identifier for this message (replay protection) |
+| `data` | object | Yes | Sensor readings (signed) |
+| `signature` | string | Yes | Base64-encoded ECDSA signature over exact bytes of `data` field |
 
 ### `data` Field Schema
 

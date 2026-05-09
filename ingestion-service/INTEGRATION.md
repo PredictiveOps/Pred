@@ -53,7 +53,6 @@ Devices send cryptographically signed telemetry to `devices/{deviceID}/data`:
 
 ```json
 {
-  "timestamp": 1704067200,
   "nonce": "n-1234567890",
   "data": {
     "mode": "normal",
@@ -68,8 +67,10 @@ Devices send cryptographically signed telemetry to `devices/{deviceID}/data`:
 }
 ```
 
+**Note:** The `timestamp` field is optional. If not provided by the device, the ingestion service will automatically add a server-generated timestamp when the message is received.
+
 ### Field Requirements
-- `timestamp`: Unix timestamp (seconds)
+- `timestamp`: Unix timestamp (seconds) - Optional, server will add if missing
 - `nonce`: Unique per message (replay protection)
 - `data`: Sensor readings object
 - `signature`: ECDSA signature over exact bytes of `data`

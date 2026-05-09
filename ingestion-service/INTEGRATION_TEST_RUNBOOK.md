@@ -258,7 +258,6 @@ echo "$SIGNED_PAYLOAD" | jq .
 
 # Expected output:
 # {
-#   "timestamp": 1714756800,
 #   "nonce": "n-1714756800000",
 #   "data": {
 #     "mode": "normal",
@@ -271,6 +270,9 @@ echo "$SIGNED_PAYLOAD" | jq .
 #   },
 #   "signature": "MEYCIQDx+..."
 # }
+#
+# Note: The timestamp field is omitted from the device payload.
+# The ingestion service will add a server-generated timestamp when the message is received.
 ```
 
 ### 4.2: Publish Signed Telemetry to MQTT
@@ -420,7 +422,6 @@ docker compose logs ingestion-service | grep -i "verify\|kafka" | tail -3
 # Create payload with corrupted signature
 INVALID_PAYLOAD=$(cat << 'EOF'
 {
-  "timestamp": 1714756800,
   "nonce": "n-invalid-1",
   "data": {
     "mode": "normal",
@@ -594,7 +595,7 @@ docker compose exec kafka kafka-topics --bootstrap-server localhost:9092 --list
 
 **Cause**: Reusing the same nonce within 60 seconds.
 
-**Fix**: Generate new nonce for each message (script does this automatically with timestamp).
+**Fix**: Generate new nonce for each message (script does this automatically with millisecond precision).
 
 ---
 
