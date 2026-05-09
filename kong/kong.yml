@@ -54,12 +54,16 @@ services:
               key_claim_name: iss
               claims_to_verify:
                 - exp
+              run_on_preflight: false
           - name: post-function
             config:
               access:
                 - |
                   -- Extract tenant_id from the (already-required) Bearer JWT and forward it.
                   -- We intentionally overwrite any client-provided value to prevent spoofing.
+                  if kong.request.get_method() == "OPTIONS" then
+                    return
+                  end
                   local auth = kong.request.get_header("authorization")
                   kong.service.request.clear_header("X-Tenant-Id")
                   if not auth then
@@ -123,12 +127,16 @@ services:
               key_claim_name: iss
               claims_to_verify:
                 - exp
+              run_on_preflight: false
           - name: post-function
             config:
               access:
                 - |
                   -- Extract tenant_id from the (already-required) Bearer JWT and forward it.
                   -- We intentionally overwrite any client-provided value to prevent spoofing.
+                  if kong.request.get_method() == "OPTIONS" then
+                    return
+                  end
                   local auth = kong.request.get_header("authorization")
                   kong.service.request.clear_header("X-Tenant-Id")
                   if not auth then
