@@ -93,12 +93,14 @@ make test
 make test-down
 ```
 
-### System Simulation
+## Multi-tenancy
 
-To simulate the whole system (for testing or demoing purposes), run:
+Tenant identity flows through the system via the `X-Tenant-Id` HTTP header. Kong extracts the `tenant_id` claim from the Keycloak JWT and forwards it as `X-Tenant-Id` to upstream services. Services must not trust a tenant ID supplied in request bodies or URL parameters — they read exclusively from this header.
+
+When calling services directly (bypassing Kong, e.g. in local development), supply the header manually:
 
 ```sh
-make simulate
+curl -H 'X-Tenant-Id: <tenant_id>' ...
 ```
 
 ## Services

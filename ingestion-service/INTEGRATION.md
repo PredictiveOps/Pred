@@ -27,11 +27,12 @@ curl http://localhost:2500/health
 
 Before devices can send telemetry, they must be registered:
 
-1. **Create device record via HTTP**:
+1. **Create device record via HTTP** (`X-Tenant-Id` header required):
 ```sh
 curl -X POST http://localhost:2500/devices/register \
   -H 'Content-Type: application/json' \
-  -d '{"device_id": 1, "tenant_id": 1}'
+  -H 'X-Tenant-Id: tenant-abc' \
+  -d '{"device_id": 1}'
 ```
 
 2. **Register public key via MQTT**:

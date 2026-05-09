@@ -4,8 +4,8 @@ import "gorm.io/gorm"
 
 // RegisterDeviceForTenant creates the device record with device and tenant IDs only.
 // The public key is attached later when the device first registers over MQTT.
-func RegisterDeviceForTenant(deviceID, tenantID uint) (*Device, error) {
-	if deviceID == 0 || tenantID == 0 {
+func RegisterDeviceForTenant(deviceID uint, tenantID string) (*Device, error) {
+	if deviceID == 0 || tenantID == "" {
 		return nil, gorm.ErrInvalidDB
 	}
 
@@ -33,14 +33,14 @@ func GetDeviceByID(deviceID uint) (*Device, error) {
 }
 
 // GetDevicesByTenantID retrieves all devices for a tenant.
-func GetDevicesByTenantID(tenantID uint) ([]Device, error) {
+func GetDevicesByTenantID(tenantID string) ([]Device, error) {
 	var devices []Device
 	result := ORM.Where("tenant_id = ?", tenantID).Find(&devices)
 	return devices, result.Error
 }
 
 // GetDeviceDetailsByTenantID retrieves device details for all devices in a tenant.
-func GetDeviceDetailsByTenantID(tenantID uint) ([]DeviceDetails, error) {
+func GetDeviceDetailsByTenantID(tenantID string) ([]DeviceDetails, error) {
 	var devices []Device
 	result := ORM.Where("tenant_id = ?", tenantID).Find(&devices)
 	if result.Error != nil {

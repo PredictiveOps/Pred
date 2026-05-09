@@ -52,10 +52,11 @@ func TestRegisterDevice_Success(t *testing.T) {
 	gdb := openTestDB(t)
 	t.Cleanup(func() { gdb.Delete(&db.Device{}, "device_id = ?", 70001) })
 
-	body := `{"device_id":70001,"tenant_id":7001}`
+	body := `{"device_id":70001}`
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/devices/register", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Tenant-Id", "7001")
 	newTestRouter(gdb).ServeHTTP(w, req)
 
 	if w.Code != http.StatusCreated {
@@ -72,10 +73,11 @@ func TestRegisterDevice_Success(t *testing.T) {
 }
 
 func TestRegisterDevice_MissingDeviceID(t *testing.T) {
-	body := `{"tenant_id":7002}`
+	body := `{}`
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/devices/register", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Tenant-Id", "7002")
 	newTestRouter(nil).ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -99,6 +101,7 @@ func TestRegisterDevice_InvalidJSON(t *testing.T) {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/devices/register", bytes.NewBufferString("not-json"))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Tenant-Id", "1")
 	newTestRouter(nil).ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -109,13 +112,13 @@ func TestRegisterDevice_InvalidJSON(t *testing.T) {
 func TestGetDevices_ReturnsTenantDevices(t *testing.T) {
 	gdb := openTestDB(t)
 	t.Cleanup(func() {
-		gdb.Delete(&db.Device{}, "tenant_id IN ?", []uint{7003, 7004})
+		gdb.Delete(&db.Device{}, "tenant_id IN ?", []string{"7003", "7004"})
 	})
 
 	for _, d := range []db.Device{
-		{DeviceID: 70031, TenantID: 7003},
-		{DeviceID: 70032, TenantID: 7003},
-		{DeviceID: 70041, TenantID: 7004},
+		{DeviceID: 70031, TenantID: "7003"},
+		{DeviceID: 70032, TenantID: "7003"},
+		{DeviceID: 70041, TenantID: "7004"},
 	} {
 		if err := gdb.Create(&d).Error; err != nil {
 			t.Fatalf("seed: %v", err)
@@ -124,6 +127,7 @@ func TestGetDevices_ReturnsTenantDevices(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/tenants/7003/devices", nil)
+	req.Header.Set("X-Tenant-Id", "7003")
 	newTestRouter(gdb).ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -138,15 +142,15 @@ func TestGetDevices_ReturnsTenantDevices(t *testing.T) {
 		t.Errorf("got %d devices, want 2", len(devices))
 	}
 	for _, d := range devices {
-		if d.TenantID != 7003 {
-			t.Errorf("device has tenant_id=%d, want 7003", d.TenantID)
+		if d.TenantID != "7003" {
+			t.Errorf("device has tenant_id=%q, want %q", d.TenantID, "7003")
 		}
 	}
 }
 
-func TestGetDevices_InvalidTenantID(t *testing.T) {
+func TestGetDevices_MissingTenantHeader(t *testing.T) {
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/tenants/abc/devices", nil)
+	req, _ := http.NewRequest(http.MethodGet, "/tenants/7003/devices", nil)
 	newTestRouter(nil).ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -157,7 +161,7 @@ func TestGetDevices_InvalidTenantID(t *testing.T) {
 func TestGetDeviceByID_Found(t *testing.T) {
 	gdb := openTestDB(t)
 
-	device := db.Device{DeviceID: 70051, TenantID: 7005}
+	device := db.Device{DeviceID: 70051, TenantID: "7005"}
 	if err := gdb.Create(&device).Error; err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -178,8 +182,8 @@ func TestGetDeviceByID_Found(t *testing.T) {
 	if resp.DeviceID != device.DeviceID {
 		t.Errorf("device_id = %d, want %d", resp.DeviceID, device.DeviceID)
 	}
-	if resp.TenantID != 7005 {
-		t.Errorf("tenant_id = %d, want 7005", resp.TenantID)
+	if resp.TenantID != "7005" {
+		t.Errorf("tenant_id = %q, want %q", resp.TenantID, "7005")
 	}
 }
 
@@ -233,7 +237,7 @@ func TestUpdateDeviceStatus_InvalidJSON(t *testing.T) {
 func TestUpdateDeviceStatus_Success(t *testing.T) {
 	gdb := openTestDB(t)
 
-	device := db.Device{DeviceID: 70061, TenantID: 7006}
+	device := db.Device{DeviceID: 70061, TenantID: "7006"}
 	if err := gdb.Create(&device).Error; err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -265,7 +269,7 @@ func TestDeleteDevice_InvalidDeviceID(t *testing.T) {
 func TestDeleteDevice_Success(t *testing.T) {
 	gdb := openTestDB(t)
 
-	device := db.Device{DeviceID: 70071, TenantID: 7007}
+	device := db.Device{DeviceID: 70071, TenantID: "7007"}
 	if err := gdb.Create(&device).Error; err != nil {
 		t.Fatalf("seed: %v", err)
 	}

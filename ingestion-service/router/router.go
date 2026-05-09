@@ -18,7 +18,7 @@ var routes = []route{
 	{http.MethodGet, "/health", handlers.HealthCheck},
 	{http.MethodPost, "/devices/register", handlers.RegisterDeviceHTTP},
 	{http.MethodGet, "/devices/:device_id", handlers.GetDeviceByIDHandler},
-	{http.MethodGet, "/tenants/:tenant_id/devices", handlers.GetDevicesByTenantIDHandler},
+	{http.MethodGet, "/devices", handlers.GetDevicesByTenantIDHandler},
 	{http.MethodPut, "/devices/:device_id/status", handlers.UpdateDeviceActiveStatusHandler},
 	{http.MethodDelete, "/devices/:device_id", handlers.DeleteDeviceHandler},
 	{http.MethodGet, "/metrics", handlers.PrometheusHandler},
