@@ -63,10 +63,9 @@ echo ""
 echo "Step 5: Register device public key via MQTT..."
 REGISTRATION_JSON=$(jq -Rs '{public_key: .}' /tmp/test-device-public.pem)
 
-docker run --rm --network host -v /tmp:/tmp eclipse-mosquitto:2 mosquitto_pub \
+docker compose exec mosquitto mosquitto_pub \
   -h localhost -p 8883 \
-  --cafile /tmp/ca.crt \
-  --insecure \
+  --cafile /mosquitto/config/certs/ca.crt \
   -u pred-device \
   -P dev-device-password \
   -i $DEVICE_ID \
@@ -94,10 +93,9 @@ test_result "Validate JSON signature format" $?
 
 echo ""
 echo "Step 7: Publish telemetry via MQTT..."
-docker run --rm --network host -v /tmp:/tmp eclipse-mosquitto:2 mosquitto_pub \
+docker compose exec mosquitto mosquitto_pub \
   -h localhost -p 8883 \
-  --cafile /tmp/ca.crt \
-  --insecure \
+  --cafile /mosquitto/config/certs/ca.crt \
   -u pred-device \
   -P dev-device-password \
   -i $DEVICE_ID \
@@ -124,10 +122,9 @@ test_result "Kafka payload has correct sensor data" $?
 
 echo ""
 echo "Step 10: Test replay protection..."
-docker run --rm --network host -v /tmp:/tmp eclipse-mosquitto:2 mosquitto_pub \
+docker compose exec mosquitto mosquitto_pub \
   -h localhost -p 8883 \
-  --cafile /tmp/ca.crt \
-  --insecure \
+  --cafile /mosquitto/config/certs/ca.crt \
   -u pred-device \
   -P dev-device-password \
   -i $DEVICE_ID \

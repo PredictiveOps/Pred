@@ -24,6 +24,17 @@ func openTestDB(t *testing.T) *gorm.DB {
 	if err := gdb.AutoMigrate(&db.Device{}); err != nil {
 		t.Fatalf("auto migrate: %v", err)
 	}
+
+	// Clean up devices table before each test
+	if err := gdb.Exec("DELETE FROM devices").Error; err != nil {
+		t.Fatalf("cleanup devices table: %v", err)
+	}
+
+	// Reset the auto-increment sequence
+	if err := gdb.Exec("ALTER SEQUENCE devices_device_id_seq RESTART WITH 1").Error; err != nil {
+		// Ignore error if sequence doesn't exist (PostgreSQL version dependent)
+	}
+
 	t.Cleanup(func() {
 		if sqlDB, err := gdb.DB(); err == nil {
 			sqlDB.Close()
@@ -33,7 +44,7 @@ func openTestDB(t *testing.T) *gorm.DB {
 }
 
 func TestRegisterDeviceForTenant(t *testing.T) {
-	openTestDB(t)
+	_ = openTestDB(t)
 
 	device, err := db.RegisterDeviceForTenant(5001, 1001)
 	if err != nil {
