@@ -2,7 +2,7 @@ const BASE_URL = `${process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost
 
 export type DeviceDetails = {
 	device_id: number;
-	tenant_id: number;
+	tenant_id: string;
 	is_active: boolean;
 	created_at: string;
 	updated_at: string;
@@ -24,7 +24,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export async function fetchDevicesByTenant(
-	tenantId: number,
+	tenantId: string,
 	accessToken?: string,
 ): Promise<DeviceDetails[]> {
 	const res = await fetch(`${BASE_URL}/tenants/${tenantId}/devices`, {
@@ -35,7 +35,7 @@ export async function fetchDevicesByTenant(
 
 export async function registerDevice(
 	deviceId: number,
-	tenantId: number,
+	tenantId: string,
 	accessToken?: string,
 ): Promise<void> {
 	const res = await fetch(`${BASE_URL}/devices/register`, {

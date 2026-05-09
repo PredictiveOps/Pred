@@ -1,4 +1,4 @@
-import NextAuth, { type NextAuthOptions } from "next-auth";
+import type { NextAuthOptions } from "next-auth";
 import { extractTenantId } from "./jwt";
 
 // Extend NextAuth Session type to include accessToken and tenantId
