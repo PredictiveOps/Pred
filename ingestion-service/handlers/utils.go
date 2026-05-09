@@ -13,6 +13,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -73,6 +74,13 @@ func verifyDeviceData(deviceID uint, fallbackPublicKey *string, payload []byte) 
 		return nil, err
 	}
 
+	// Add server-generated timestamp if not provided by device
+	if message.Timestamp == nil {
+		now := time.Now().Unix()
+		message.Timestamp = &now
+		log.Printf("added server-generated timestamp for device_id=%d timestamp=%d", deviceID, now)
+	}
+
 	publicKeyPEM, err := resolveDevicePublicKey(deviceID, fallbackPublicKey)
 	if err != nil {
 		return nil, err
@@ -113,7 +121,7 @@ func verifyDeviceData(deviceID uint, fallbackPublicKey *string, payload []byte) 
 		}
 	}
 
-	log.Printf("verified signed payload for device_id=%d payload_bytes=%d", deviceID, len(message.Data))
+	log.Printf("verified signed payload for device_id=%d payload_bytes=%d timestamp=%d", deviceID, len(message.Data), *message.Timestamp)
 	return message, nil
 }
 
@@ -168,9 +176,7 @@ func verifyRawDataStructure(payload []byte) (*db.MQTTPayload, error) {
 	if message.Signature == "" {
 		return nil, fmt.Errorf("signature is required")
 	}
-	if message.Timestamp == 0 {
-		return nil, fmt.Errorf("timestamp is required")
-	}
+	// Timestamp is now optional - will be set by server if missing
 
 	return &message, nil
 }

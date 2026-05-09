@@ -74,7 +74,7 @@ func handleMQTTDataMessage(deviceID uint, msg mqtt.Message) {
 	}
 
 	deviceKey := strconv.FormatUint(uint64(deviceID), 10)
-	kafkaPayload := prepareKafkaPayload(deviceID, message.Timestamp, sensorData)
+	kafkaPayload := prepareKafkaPayload(deviceID, *message.Timestamp, sensorData)
 	kafkaJSON, err := json.Marshal(kafkaPayload)
 	if err != nil {
 		log.Printf("failed to marshal kafka message: %v", err)
