@@ -207,6 +207,7 @@ plugins:
         - Content-Type
         - Date
         - Authorization
+        - X-Tenant-Id
       exposed_headers:
         - Authorization
       credentials: true
