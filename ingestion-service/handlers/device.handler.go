@@ -25,17 +25,24 @@ func SetRegistrationResponseTopicTemplate(template string) {
 }
 
 // RegisterDeviceHTTP handles the HTTP endpoint for device registration.
-// Body: { "device_id": uint, "tenant_id": uint }
+// Body: { "device_id": uint }
+// Header: X-Tenant-Id
 func RegisterDeviceHTTP(gdb *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var req db.DeviceHTTPRegistrationRequest
+		tenantID := c.GetHeader("X-Tenant-Id")
+		if tenantID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "X-Tenant-Id header is required"})
+			return
+		}
 
+		var req db.DeviceHTTPRegistrationRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
 			return
 		}
-		if req.DeviceID == 0 || req.TenantID == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "device_id and tenant_id are required"})
+		req.TenantID = tenantID
+		if req.DeviceID == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "device_id is required"})
 			return
 		}
 
@@ -52,7 +59,7 @@ func RegisterDeviceHTTP(gdb *gorm.DB) gin.HandlerFunc {
 				}
 			}(req.DeviceID)
 		}
-		log.Printf("device registered: device_id=%d tenant_id=%d", device.DeviceID, device.TenantID)
+		log.Printf("device registered: device_id=%d tenant_id=%s", device.DeviceID, device.TenantID)
 		c.JSON(http.StatusCreated, db.DeviceRegistrationResponse{RegistrationStatus: "ok"})
 	}
 }
@@ -90,21 +97,16 @@ func GetDeviceByIDHandler(gdb *gorm.DB) gin.HandlerFunc {
 }
 
 // GetDevicesByTenantIDHandler retrieves all devices (details) for a tenant.
+// Header: X-Tenant-Id
 func GetDevicesByTenantIDHandler(gdb *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		for name, values := range c.Request.Header {
-			for _, value := range values {
-				log.Printf("header: %s=%s", name, value)
-			}
-		}
-		tenantIDParam := c.Param("tenant_id")
-		tenantID64, err := strconv.ParseUint(tenantIDParam, 10, 32)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid tenant_id"})
+		tenantID := c.GetHeader("X-Tenant-Id")
+		if tenantID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "X-Tenant-Id header is required"})
 			return
 		}
 
-		details, err := db.GetDeviceDetailsByTenantID(uint(tenantID64))
+		details, err := db.GetDeviceDetailsByTenantID(tenantID)
 		if err != nil {
 			log.Printf("failed to retrieve devices: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve devices"})
