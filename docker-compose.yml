@@ -165,6 +165,7 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/events
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_TOPIC=sensor_data
+      - ML_FEATURES_TOPIC=processed-data
       - DATA_FORMAT=${DATA_FORMAT:-new}
     depends_on:
       postgres:

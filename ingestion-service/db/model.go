@@ -62,7 +62,7 @@ type MQTTPayload struct {
 }
 
 type OldKafkaPayload struct {
-	DeviceID  uint    `json:"device_id"`
+	DeviceID  string  `json:"device_id"`
 	Timestamp int64   `json:"timestamp"`
 	Mode      string  `json:"mode"`
 	VRMS      float64 `json:"v_rms"`
@@ -74,7 +74,7 @@ type OldKafkaPayload struct {
 }
 
 type NewKafkaPayload struct {
-	DeviceID        uint    `json:"device_id"`
+	DeviceID        string  `json:"device_id"`
 	Timestamp       int64   `json:"timestamp"`
 	VibrationX      float64 `json:"vibration_x"`
 	VibrationY      float64 `json:"vibration_y"`

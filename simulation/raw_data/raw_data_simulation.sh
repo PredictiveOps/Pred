@@ -1,25 +1,76 @@
 #!/bin/bash
 # Run MQTT simulation through the full pipeline: simulation -> MQTT -> ingestion -> Kafka
-# Usage: ./run_simulation.sh [device_id] [format] [count] [rate] [verbose]
+# Usage: ./run_simulation.sh [device_id] [format] [count] [rate] [--loop] [--delay SECONDS] [verbose]
+# Examples:
+#   ./run_simulation.sh 1 new 100 10                    # Single batch of 100 messages
+#   ./run_simulation.sh --loop --delay 30 1 new 50 5   # Continuous mode, 50 messages every 30s at 5 msg/s
 
 set -e
 
-DEVICE_ID="${1:-1}"
-FORMAT="${2:-new}"
-COUNT="${3:-100}"
-RATE="${4:-10}"
-VERBOSE="${5:-}"
+# Parse arguments
+LOOP_FLAG=""
+DELAY="60"  # Default delay between batches in seconds
+DEVICE_ID=""
+FORMAT=""
+COUNT=""
+RATE=""
+VERBOSE=""
 
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --loop)
+            LOOP_FLAG="--loop"
+            shift
+            ;;
+        --delay)
+            DELAY="$2"
+            shift 2
+            ;;
+        *)
+            # Positional arguments - assign in order
+            if [[ -z "$DEVICE_ID" ]]; then
+                DEVICE_ID="$1"
+            elif [[ -z "$FORMAT" ]]; then
+                FORMAT="$1"
+            elif [[ -z "$COUNT" ]]; then
+                COUNT="$1"
+            elif [[ -z "$RATE" ]]; then
+                RATE="$1"
+            else
+                VERBOSE="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Set defaults for empty positional arguments
+DEVICE_ID="${DEVICE_ID:-1}"
+FORMAT="${FORMAT:-new}"
+COUNT="${COUNT:-100}"
+RATE="${RATE:-10}"
+
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SIM_DIR="$PROJECT_ROOT/simulation"
-PRIVATE_KEY="$SIM_DIR/device-private.pem"
-PUBLIC_KEY="$SIM_DIR/device-public.pem"
+PRIVATE_KEY="$PROJECT_ROOT/simulation/device-private.pem"
+PUBLIC_KEY="$PROJECT_ROOT/simulation/device-public.pem"
+
+# Cleanup function
+cleanup() {
+    echo ""
+    echo "Shutting down simulation..."
+    # Kill any background processes if needed
+    exit 0
+}
+trap cleanup EXIT INT TERM
 
 echo "=== Pred Simulation Runner ==="
 echo "Device ID: $DEVICE_ID"
 echo "Format: $FORMAT"
 echo "Count: $COUNT messages"
 echo "Rate: $RATE msg/s"
+echo "Loop Mode: $([ -n "$LOOP_FLAG" ] && echo 'enabled' || echo 'disabled')"
+echo "Delay: ${DELAY}s between batches"
 echo "Verbose: ${VERBOSE:-no}"
 echo ""
 
@@ -50,7 +101,7 @@ PUBKEY=$(awk 'NF {sub(/\r/, ""); printf "%s\\n", $0}' "$PUBLIC_KEY")
 if docker compose ps mosquitto &>/dev/null; then
     docker compose exec -T mosquitto mosquitto_pub \
         -h localhost -p 8883 \
-        --cafile /mosquitto/config/certs/ca.crt \
+        --cafile ../mosquitto/certs/ca.crt \
         -u pred-device -P dev-device-password \
         -i "$DEVICE_ID" \
         -t "devices/$DEVICE_ID/registration" \
@@ -63,8 +114,6 @@ fi
 
 # 4. Run simulation
 echo "[4/4] Starting simulation..."
-echo ""
-cd "$SIM_DIR"
 
 if [ -n "$VERBOSE" ]; then
     PROGRESS_INTERVAL=0
@@ -73,19 +122,44 @@ else
     PROGRESS_INTERVAL=10
 fi
 
-python3 raw_telemetry_engine.py \
-    --device "$DEVICE_ID" \
-    --format "$FORMAT" \
-    --signed \
-    --private-key "$PRIVATE_KEY" \
-    --broker localhost \
-    --port 8883 \
-    --rate "$RATE" \
-    --count "$COUNT" \
-    --username pred-device \
-    --password dev-device-password \
-    --progress-interval "$PROGRESS_INTERVAL" \
-    ${VERBOSE:+--verbose}
+# Function to run a single batch
+run_simulation_batch() {
+    echo ""
+    echo "Starting batch of $COUNT messages..."
+    cd "$SIM_DIR/raw_data"
+    
+    python3 raw_telemetry_engine.py \
+        --device "$DEVICE_ID" \
+        --format "$FORMAT" \
+        --signed \
+        --private-key "$PRIVATE_KEY" \
+        --broker localhost \
+        --port 8883 \
+        --ca-cert "$PROJECT_ROOT/mosquitto/certs/ca.crt" \
+        --rate "$RATE" \
+        --count "$COUNT" \
+        --username pred-device \
+        --password dev-device-password \
+        --progress-interval "$PROGRESS_INTERVAL" \
+        ${VERBOSE:+--verbose}
+    
+    echo "Batch completed. Messages sent: $COUNT"
+}
+
+# Main execution loop
+if [ -n "$LOOP_FLAG" ]; then
+    echo "Continuous mode enabled. Running batches with ${DELAY}s delay."
+    echo "Press Ctrl+C to stop."
+    
+    while true; do
+        run_simulation_batch
+        echo "Waiting ${DELAY}s before next batch..."
+        sleep "$DELAY"
+    done
+else
+    # Single batch execution
+    run_simulation_batch
+fi
 
 echo ""
 echo "=== Simulation Complete ==="

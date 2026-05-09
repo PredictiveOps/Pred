@@ -13,21 +13,21 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Required containers for simulation pipeline
-REQUIRED_SERVICES="mosquitto postgres redis kafka kafka-ui ingestion-service"
+# Required containers for complete pipeline
+REQUIRED_SERVICES="mosquitto postgres redis kafka kafka-ui ingestion-service event-processing-service ml-service alert-notifier prediction-persister prometheus"
 
-echo "[1/6] Starting base infrastructure (mosquitto, postgres, redis, kafka, kafka-ui)..."
-docker compose up -d mosquitto postgres redis kafka kafka-ui
+echo "[1/8] Starting base infrastructure (mosquitto, postgres, redis, kafka, kafka-ui, prometheus)..."
+docker compose up -d mosquitto postgres redis kafka kafka-ui prometheus
 
 echo ""
-echo "[2/6] Waiting for services to be healthy..."
+echo "[2/8] Waiting for base services to be healthy..."
 MAX_WAIT=60
 WAITED=0
 
 while [ $WAITED -lt $MAX_WAIT ]; do
     HEALTHY=true
     
-    for service in mosquitto postgres redis kafka-ui; do
+    for service in mosquitto postgres redis kafka-ui prometheus; do
         STATUS=$(docker compose ps -q $service 2>/dev/null | xargs docker inspect -f '{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
         if [ "$STATUS" != "healthy" ] && [ "$STATUS" != "running" ]; then
             HEALTHY=false
@@ -50,17 +50,26 @@ if [ "$HEALTHY" = false ]; then
 fi
 
 echo ""
-echo "[3/6] Creating Kafka topic (sensor_data)..."
+echo "[3/8] Creating Kafka topics..."
 docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
     --create --bootstrap-server localhost:9092 \
-    --topic sensor_data --partitions 1 --replication-factor 1 2>/dev/null || echo "      Topic already exists or will be created"
+    --topic sensor_data --partitions 1 --replication-factor 1 2>/dev/null || echo "      Topic sensor_data already exists or will be created"
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
+    --create --bootstrap-server localhost:9092 \
+    --topic processed-data --partitions 1 --replication-factor 1 2>/dev/null || echo "      Topic processed-data already exists or will be created"
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
+    --create --bootstrap-server localhost:9092 \
+    --topic predictions --partitions 1 --replication-factor 1 2>/dev/null || echo "      Topic predictions already exists or will be created"
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
+    --create --bootstrap-server localhost:9092 \
+    --topic alerts --partitions 1 --replication-factor 1 2>/dev/null || echo "      Topic alerts already exists or will be created"
 
 echo ""
-echo "[4/6] Starting ingestion-service..."
+echo "[4/8] Starting ingestion-service..."
 docker compose up -d ingestion-service
 
 echo ""
-echo "[5/6] Verifying ingestion service..."
+echo "[5/8] Verifying ingestion service..."
 MAX_RETRY=10
 RETRY=0
 while [ $RETRY -lt $MAX_RETRY ]; do
@@ -74,7 +83,11 @@ while [ $RETRY -lt $MAX_RETRY ]; do
 done
 
 echo ""
-echo "[6/6] Verifying kafka-ui..."
+echo "[6/8] Starting processing services (event-processing-service, ml-service, alert-notifier, prediction-persister)..."
+docker compose up -d event-processing-service ml-service alert-notifier prediction-persister
+
+echo ""
+echo "[7/8] Verifying kafka-ui..."
 sleep 2
 if curl -s http://localhost:8085 > /dev/null 2>&1; then
     echo "      Kafka UI is ready!"
@@ -83,15 +96,33 @@ else
 fi
 
 echo ""
+echo "[8/8] Verifying ML service..."
+MAX_RETRY=10
+RETRY=0
+while [ $RETRY -lt $MAX_RETRY ]; do
+    if curl -s http://localhost:8004/health > /dev/null 2>&1; then
+        echo "      ML service is ready!"
+        break
+    fi
+    echo "      Waiting for ML service... ($RETRY/$MAX_RETRY)"
+    sleep 2
+    RETRY=$((RETRY + 1))
+done
+
+echo ""
 echo "=== Infrastructure Ready ==="
 echo ""
-docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" | grep -E "(mosquitto|postgres|redis|kafka|ingestion|kafka-ui)" || true
+docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" | grep -E "(mosquitto|postgres|redis|kafka|ingestion|kafka-ui|event-processing|ml-service|alert-notifier|prediction-persister|prometheus)" || true
 echo ""
 echo "Services:"
-echo "  - Mosquitto (MQTT):  localhost:8883"
-echo "  - Ingestion API:     http://localhost:2500"
-echo "  - Kafka:             localhost:9092"
-echo "  - Kafka UI:          http://localhost:8085"
+echo "  - Mosquitto (MQTT):           localhost:8883"
+echo "  - Ingestion API:              http://localhost:2500"
+echo "  - Kafka:                      localhost:9092"
+echo "  - Kafka UI:                   http://localhost:8085"
+echo "  - Event Processing Service:    http://localhost:8001"
+echo "  - ML Service:                 http://localhost:8004"
+echo "  - Prometheus:                 http://localhost:9090"
+echo "  - PostgreSQL:                 localhost:5433"
 echo ""
 echo "Run simulation:"
 echo "  cd simulation && ./run_simulation.sh 1 new 100"

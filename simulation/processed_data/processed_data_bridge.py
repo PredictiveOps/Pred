@@ -71,25 +71,18 @@ def post_to_ml_service(payload: dict[str, Any]) -> tuple[bool, dict]:
 
 def transform_to_ml_format(kafka_message: dict) -> dict | None:
     """Transform Kafka message to ML service /predict/vibration format."""
-    # Expected Kafka message format from simulator
+    # Handle MLRequest format from event processing service
     device_id = kafka_message.get("device_id")
     tenant_id = kafka_message.get("tenant_id", "demo_tenant")
-    asset_id = kafka_message.get("asset_id", f"{device_id}_bearing")
     features = kafka_message.get("features")
-    timestamp = kafka_message.get("timestamp")
+    data_format = kafka_message.get("data_format", "unknown")
+    
+    # Generate asset_id from device_id if not present
+    asset_id = kafka_message.get("asset_id", f"{device_id}_bearing")
 
     if not device_id or not features:
         logger.warning(f"Missing required fields: device_id={device_id}, features={features}")
         return None
-
-    # Parse timestamp or use current time
-    try:
-        if timestamp:
-            feature_timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        else:
-            feature_timestamp = datetime.now(timezone.utc)
-    except (ValueError, TypeError):
-        feature_timestamp = datetime.now(timezone.utc)
 
     # Format for /predict/vibration endpoint
     return {

@@ -33,7 +33,8 @@ func main() {
 	groupID := getEnv("KAFKA_GROUP_ID", "event-processing-service")
 	dbURL := getEnv("DATABASE_URL", "postgres://localhost:5432/events")
 	httpPort := getEnv("HTTP_PORT", "8081")
-	mlTopic := getEnv("ML_FEATURES_TOPIC", "ml-features")
+	mlTopic := getEnv("ML_FEATURES_TOPIC", "processed-data")
+	mlServiceURL := getEnv("ML_SERVICE_URL", "http://ml-service:8000/predict/vibration")
 	windowSecs := getEnvInt("WINDOW_DURATION_SECONDS", 5)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -54,6 +55,9 @@ func main() {
 			log.Printf("ml sink close error: %v", err)
 		}
 	}()
+
+	mlClient := processor.NewMLClient(mlServiceURL)
+
 	windowDuration := time.Duration(windowSecs) * time.Second
 
 	windowManager := processor.NewWindowManager(windowDuration, func(tenantID, deviceID string, readings []processor.SensorEvent) {
@@ -64,10 +68,19 @@ func main() {
 			Features:   result.Features,
 			DataFormat: result.DataFormat,
 		}
+
+		// Send to Kafka processed-data topic
 		if err := mlSink.Send(context.Background(), payload); err != nil {
-			log.Printf("[ml] enqueue error device=%q: %v", deviceID, err)
+			log.Printf("[ml] kafka enqueue error device=%q: %v", deviceID, err)
 		} else {
-			log.Printf("[ml] enqueued features device=%q tenant=%q readings=%d", deviceID, tenantID, len(readings))
+			log.Printf("[ml] enqueued features to kafka device=%q tenant=%q readings=%d", deviceID, tenantID, len(readings))
+		}
+
+		// Send to ML Service via HTTP POST for prediction
+		if err := mlClient.Send(context.Background(), deviceID, tenantID, result.Features, result.DataFormat); err != nil {
+			log.Printf("[ml] http post error device=%q: %v", deviceID, err)
+		} else {
+			log.Printf("[ml] sent features to ml-service device=%q tenant=%q", deviceID, tenantID)
 		}
 	})
 

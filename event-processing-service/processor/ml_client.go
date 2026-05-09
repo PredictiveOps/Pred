@@ -14,6 +14,7 @@ import (
 type MLRequest struct {
 	DeviceID   string     `json:"device_id"`
 	TenantID   string     `json:"tenant_id"`
+	AssetID    string     `json:"asset_id"`
 	Features   MLFeatures `json:"features"`
 	DataFormat DataFormat `json:"data_format"` // old, new, or mixed - tracks which sensor format was used
 }
@@ -38,9 +39,12 @@ func NewMLClient(url string) *MLClient {
 // Send marshals the MLRequest to JSON and POSTs it to the ML Service.
 // The response body is logged for observability but not parsed.
 func (c *MLClient) Send(ctx context.Context, deviceID, tenantID string, features MLFeatures, dataFormat DataFormat) error {
+	// Use deviceID as assetID if not provided separately
+	assetID := deviceID
 	payload := MLRequest{
 		DeviceID:   deviceID,
 		TenantID:   tenantID,
+		AssetID:    assetID,
 		Features:   features,
 		DataFormat: dataFormat,
 	}

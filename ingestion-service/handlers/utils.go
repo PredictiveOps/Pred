@@ -161,7 +161,7 @@ func prepareKafkaPayload(deviceID uint, timestamp int64, data interface{}) inter
 	switch d := data.(type) {
 	case db.OldTelemetryData:
 		return &db.OldKafkaPayload{
-			DeviceID:  deviceID,
+			DeviceID:  strconv.FormatUint(uint64(deviceID), 10),
 			Timestamp: timestamp,
 			Mode:      d.Mode,
 			VRMS:      d.VRMS,
@@ -173,7 +173,7 @@ func prepareKafkaPayload(deviceID uint, timestamp int64, data interface{}) inter
 		}
 	case db.NewTelemetryData:
 		return &db.NewKafkaPayload{
-			DeviceID:        deviceID,
+			DeviceID:        strconv.FormatUint(uint64(deviceID), 10),
 			Timestamp:       timestamp,
 			VibrationX:      d.VibrationX,
 			VibrationY:      d.VibrationY,
