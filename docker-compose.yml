@@ -20,7 +20,7 @@ services:
       - pred-network
 
   kafka:
-    image: apache/kafka:latest
+    image: apache/kafka:4.2.0
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -84,6 +84,21 @@ services:
       retries: 5
     networks:
       - pred-network
+
+  prometheus:
+    image: prom/prometheus:v3.11.3
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
 
   ingestion-service:
     build: ./ingestion-service
@@ -185,39 +200,13 @@ services:
   event-processing-service:
     build: ./event-processing-service
     environment:
-      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
-      KAFKA_TOPIC: ${KAFKA_TOPIC:-device-events}
-      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-event-processing-service}
-      DATABASE_URL: ${EVENT_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/events}
-      HTTP_PORT: ${EVENT_HTTP_PORT:-8080}
-    ports:
-      - "8082:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - pred-network
-    restart: on-failure
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8080/health",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  notifications-service:
-    build: ./notifications-service
-    environment:
-      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
+      PORT: 8003
+      MQTT_BROKER: tcp://mosquitto:1883
+      MQTT_CLIENT_ID: ingestion-service
+      MQTT_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
+      MQTT_PASSWORD: ${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
+      MQTT_TOPIC: sensors/data
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:29092}
       KAFKA_TOPIC: ${KAFKA_TOPIC:-notifications}
       KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-notifications-service}
       DATABASE_URL: ${NOTIFICATIONS_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/notifications}
@@ -225,10 +214,22 @@ services:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_healthy
+        condition: service_started
     networks:
       - pred-network
     restart: on-failure
+
+  notifications-service:
+    build:
+      context: ./notifications-service
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/notifications
+      KAFKA_BROKERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
 
   ml-service:
     build: ./ai-ml

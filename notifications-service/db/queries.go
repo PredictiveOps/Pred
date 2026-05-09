@@ -47,3 +47,13 @@ func UpdateDeliveryStatus(ctx context.Context, gdb *gorm.DB, id int64, status, e
 	}
 	return gdb.WithContext(ctx).Model(&NotificationDelivery{}).Where("id = ?", id).Updates(updates).Error
 }
+
+func GetNotifications(ctx context.Context, gdb *gorm.DB, tenantID string, limit int) ([]Notification, error) {
+	var notifs []Notification
+	err := gdb.WithContext(ctx).
+		Where("tenant_id = ?", tenantID).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&notifs).Error
+	return notifs, err
+}

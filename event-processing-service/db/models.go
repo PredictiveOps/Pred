@@ -61,53 +61,53 @@ type PredictionReview struct {
 
 // RetrainingConfig stores configuration for retraining triggers
 type RetrainingConfig struct {
-	ID                     int64  `gorm:"primaryKey"`
-	TenantID               string `gorm:"uniqueIndex;not null"`
-	MinimumReviewedRecords int    `gorm:"not null;default:500"`
-	AutoRetrainEnabled     bool   `gorm:"not null;default:false"`
-	RequiresManualApproval bool   `gorm:"not null;default:true"`
-	UpdatedBy              string
-	UpdatedAt              time.Time `gorm:"not null;default:now()"`
+	ID                     int64     `gorm:"primaryKey" json:"id"`
+	TenantID               string    `gorm:"uniqueIndex;not null" json:"tenant_id"`
+	MinimumReviewedRecords int       `gorm:"not null;default:500" json:"minimum_reviewed_records"`
+	AutoRetrainEnabled     bool      `gorm:"not null;default:false" json:"auto_retrain_enabled"`
+	RequiresManualApproval bool      `gorm:"not null;default:true" json:"requires_manual_approval"`
+	UpdatedBy              string    `json:"updated_by"`
+	UpdatedAt              time.Time `gorm:"not null;default:now()" json:"updated_at"`
 }
 
 // RetrainingRequest tracks retraining workflow
 type RetrainingRequest struct {
-	ID                int64  `gorm:"primaryKey"`
-	RequestID         string `gorm:"uniqueIndex;not null"`
-	TenantID          string `gorm:"not null;index:retraining_requests_tenant"`
-	Status            string `gorm:"not null;default:created"` // created, approved, in_progress, completed, failed, rejected
-	TrainingDataCount int
-	RequestedBy       string
-	ApprovedBy        *string
-	RejectionReason   *string
-	CompletedAt       *time.Time
-	CreatedAt         time.Time `gorm:"not null;default:now()"`
-	UpdatedAt         time.Time `gorm:"not null;default:now()"`
+	ID                int64      `gorm:"primaryKey" json:"id"`
+	RequestID         string     `gorm:"uniqueIndex;not null" json:"request_id"`
+	TenantID          string     `gorm:"not null;index:retraining_requests_tenant" json:"tenant_id"`
+	Status            string     `gorm:"not null;default:created" json:"status"` // created, approved, in_progress, completed, failed, rejected
+	TrainingDataCount int        `json:"training_data_count"`
+	RequestedBy       string     `json:"requested_by"`
+	ApprovedBy        *string    `json:"approved_by"`
+	RejectionReason   *string    `json:"rejection_reason"`
+	CompletedAt       *time.Time `json:"completed_at"`
+	CreatedAt         time.Time  `gorm:"not null;default:now()" json:"created_at"`
+	UpdatedAt         time.Time  `gorm:"not null;default:now()" json:"updated_at"`
 }
 
 // ModelVersion stores versioned model metadata
 type ModelVersion struct {
-	ID                int64  `gorm:"primaryKey"`
-	ModelID           string `gorm:"not null;index:model_versions_model,priority:1"`
-	TenantID          string `gorm:"not null;index:model_versions_model,priority:2"`
-	ModelName         string `gorm:"not null"`
-	ModelVersion      string `gorm:"not null"` // v1, v2, etc.
-	ModelPath         string // path to saved model artifacts
-	TrainingDataCount int
-	TrainingDate      time.Time
-	ValidationScore   *float64
-	ApprovedBy        *string
-	DeploymentStatus  string `gorm:"not null;default:trained"` // trained, pending_approval, approved, deployed, rejected
-	ActiveUntil       *time.Time
-	CreatedAt         time.Time `gorm:"not null;default:now()"`
-	UpdatedAt         time.Time `gorm:"not null;default:now()"`
+	ID                int64      `gorm:"primaryKey" json:"id"`
+	ModelID           string     `gorm:"not null;index:model_versions_model,priority:1" json:"model_id"`
+	TenantID          string     `gorm:"not null;index:model_versions_model,priority:2" json:"tenant_id"`
+	ModelName         string     `gorm:"not null" json:"model_name"`
+	ModelVersion      string     `gorm:"not null" json:"model_version"` // v1, v2, etc.
+	ModelPath         string     `json:"model_path"`                    // path to saved model artifacts
+	TrainingDataCount int        `json:"training_data_count"`
+	TrainingDate      time.Time  `json:"training_date"`
+	ValidationScore   *float64   `json:"validation_score"`
+	ApprovedBy        *string    `json:"approved_by"`
+	DeploymentStatus  string     `gorm:"not null;default:trained" json:"deployment_status"` // trained, pending_approval, approved, deployed, rejected
+	ActiveUntil       *time.Time `json:"active_until"`
+	CreatedAt         time.Time  `gorm:"not null;default:now()" json:"created_at"`
+	UpdatedAt         time.Time  `gorm:"not null;default:now()" json:"updated_at"`
 }
 
 // Index to find latest active model version for a tenant
 type ActiveModelVersion struct {
-	ID            int64  `gorm:"primaryKey"`
-	TenantID      string `gorm:"uniqueIndex;not null"`
-	ActiveModelID string `gorm:"not null"` // FK to ModelVersion.ModelID
-	ActiveVersion string `gorm:"not null"` // current version string (v1, v2, etc.)
-	UpdatedAt     time.Time
+	ID            int64     `gorm:"primaryKey" json:"id"`
+	TenantID      string    `gorm:"uniqueIndex;not null" json:"tenant_id"`
+	ActiveModelID string    `gorm:"not null" json:"active_model_id"` // FK to ModelVersion.ModelID
+	ActiveVersion string    `gorm:"not null" json:"active_version"`  // current version string (v1, v2, etc.)
+	UpdatedAt     time.Time `json:"updated_at"`
 }
