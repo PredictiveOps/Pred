@@ -27,8 +27,11 @@ export async function fetchDevicesByTenant(
 	tenantId: string,
 	accessToken?: string,
 ): Promise<DeviceDetails[]> {
-	const res = await fetch(`${BASE_URL}/tenants/${tenantId}/devices`, {
-		headers: authHeaders(accessToken),
+	const res = await fetch(`${BASE_URL}/devices`, {
+		headers: {
+			...authHeaders(accessToken),
+			"X-Tenant-Id": tenantId,
+		},
 	});
 	return handleResponse<DeviceDetails[]>(res);
 }
@@ -40,7 +43,10 @@ export async function registerDevice(
 ): Promise<void> {
 	const res = await fetch(`${BASE_URL}/devices/register`, {
 		method: "POST",
-		headers: authHeaders(accessToken),
+		headers: {
+			...authHeaders(accessToken),
+			"X-Tenant-Id": tenantId,
+		},
 		body: JSON.stringify({ device_id: deviceId, tenant_id: tenantId }),
 	});
 	await handleResponse<unknown>(res);
@@ -48,12 +54,16 @@ export async function registerDevice(
 
 export async function updateDeviceStatus(
 	deviceId: number,
+	tenantId: string,
 	isActive: boolean,
 	accessToken?: string,
 ): Promise<void> {
 	const res = await fetch(`${BASE_URL}/devices/${deviceId}/status`, {
 		method: "PUT",
-		headers: authHeaders(accessToken),
+		headers: {
+			...authHeaders(accessToken),
+			"X-Tenant-Id": tenantId,
+		},
 		body: JSON.stringify({ is_active: isActive }),
 	});
 	await handleResponse<unknown>(res);
@@ -61,11 +71,15 @@ export async function updateDeviceStatus(
 
 export async function deleteDevice(
 	deviceId: number,
+	tenantId: string,
 	accessToken?: string,
 ): Promise<void> {
 	const res = await fetch(`${BASE_URL}/devices/${deviceId}`, {
 		method: "DELETE",
-		headers: authHeaders(accessToken),
+		headers: {
+			...authHeaders(accessToken),
+			"X-Tenant-Id": tenantId,
+		},
 	});
 	await handleResponse<unknown>(res);
 }

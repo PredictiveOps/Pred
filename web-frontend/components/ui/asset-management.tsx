@@ -32,7 +32,7 @@ export function AssetManagement() {
 	const [registerError, setRegisterError] = useState<string | null>(null);
 	const [actionInProgress, setActionInProgress] = useState<number | null>(null);
 
-	const tenantId = session?.tenantId ?? null;
+	const tenantId = session?.tenantId || "";
 	const accessToken = session?.accessToken;
 
 	const loadDevices = useCallback(async () => {
@@ -76,6 +76,7 @@ export function AssetManagement() {
 		try {
 			await updateDeviceStatus(
 				device.device_id,
+				tenantId,
 				!device.is_active,
 				accessToken,
 			);
@@ -96,7 +97,7 @@ export function AssetManagement() {
 	async function handleDelete(device: DeviceDetails) {
 		setActionInProgress(device.device_id);
 		try {
-			await deleteDevice(device.device_id, accessToken);
+			await deleteDevice(device.device_id, tenantId, accessToken);
 			setDevices((prev) =>
 				prev.filter((d) => d.device_id !== device.device_id),
 			);
