@@ -7,7 +7,7 @@ import (
 
 type Device struct {
 	DeviceID  uint      `gorm:"primaryKey" json:"device_id"`
-	TenantID  uint      `json:"tenant_id"`
+	TenantID  string    `json:"tenant_id"`
 	PublicKey *string   `json:"public_key"`
 	IsActive  bool      `json:"is_active" gorm:"default:false"`
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
@@ -16,15 +16,15 @@ type Device struct {
 
 type DeviceDetails struct {
 	DeviceID  uint      `json:"device_id"`
-	TenantID  uint      `json:"tenant_id"`
+	TenantID  string    `json:"tenant_id"`
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type DeviceHTTPRegistrationRequest struct {
-	DeviceID uint `json:"device_id"`
-	TenantID uint `json:"tenant_id"`
+	DeviceID uint   `json:"device_id"`
+	TenantID string `json:"tenant_id"`
 }
 
 type DeviceRegistrationRequest struct {
