@@ -36,7 +36,7 @@ See the [Verification Guide](#verification-guide) section for instructions on ob
 
 ### Plugins Enabled
 
-- **JWT**: Enforces JSON Web Token (JWT) authentication on protected routes. All API endpoints require a valid JWT token from Keycloak (`Authorization: Bearer <token>`). Claims verified: `exp` (expiration).
+- **JWT**: Enforces JSON Web Token (JWT) authentication on protected routes. All API endpoints require a valid JWT token from Keycloak (`Authorization: Bearer <token>`). Claims verified: `exp` (expiration). Kong also extracts the `tenant_id` claim from the JWT and forwards it to upstream services as the `X-Tenant-Id` request header.
 - **CORS**: Handles Cross-Origin Resource Sharing for safe frontend communication. Configured for `localhost:3000` and `localhost:8000` with credentials enabled.
 - **Rate Limiting**: Restricts API calls to 600 requests per minute per IP to prevent abuse and accidental spikes.
 - **Request Size Limiting**: Prevents payloads larger than 10MB to protect the ingestion service from DoS attacks.

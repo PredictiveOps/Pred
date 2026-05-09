@@ -119,10 +119,11 @@ Before deploying to production:
 openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out /tmp/device-private.pem
 openssl pkey -in /tmp/device-private.pem -pubout -out /tmp/device-public.pem
 
-# Register device
+# Register device (X-Tenant-Id header required)
 curl -X POST http://localhost:2500/devices/register \
   -H 'Content-Type: application/json' \
-  -d '{"device_id": 1, "tenant_id": 1}'
+  -H 'X-Tenant-Id: tenant-abc' \
+  -d '{"device_id": 1}'
 
 # Generate signed telemetry payload
 python3 scripts/sign_mqtt_payload.py /tmp/device-private.pem > /tmp/signed-payload.json
