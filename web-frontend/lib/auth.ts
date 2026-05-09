@@ -12,6 +12,10 @@ declare module "next-auth" {
 			image?: string | null;
 		};
 	}
+
+	interface JWT {
+		error?: string;
+	}
 }
 
 export const authOptions: NextAuthOptions = {
@@ -86,6 +90,17 @@ export const authOptions: NextAuthOptions = {
 					? extractTenantId(account.access_token)
 					: null;
 			}
+
+			if (token.error && token.error === "TokenExpired") {
+				return { ...token, error: "TokenExpired" };
+			}
+
+			const isExpired = token.expiresAt && Date.now() / 1000 > (token.expiresAt as number);
+
+			if (isExpired) {
+				return { ...token, error: "TokenExpired" };
+			}
+
 			return token;
 		},
 		async session({ session, token }) {

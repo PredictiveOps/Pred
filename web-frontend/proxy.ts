@@ -8,13 +8,15 @@ export async function proxy(request: NextRequest) {
 	});
 	const { pathname } = request.nextUrl;
 
-	// Redirect authenticated users away from the login page
-	if (pathname === "/login" && token) {
+	const isExpired = token && (token as any).error === "TokenExpired";
+
+	// Redirect authenticated (non-expired) users away from the login page
+	if (pathname === "/login" && token && !isExpired) {
 		return NextResponse.redirect(new URL("/dashboard", request.url));
 	}
 
-	// Redirect unauthenticated users to login for all protected routes
-	if (pathname !== "/login" && !token) {
+	// Redirect unauthenticated or expired-token users to login for all protected routes
+	if (pathname !== "/login" && (!token || isExpired)) {
 		const loginUrl = new URL("/login", request.url);
 		loginUrl.searchParams.set("callbackUrl", pathname);
 		return NextResponse.redirect(loginUrl);
