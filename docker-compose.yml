@@ -152,7 +152,6 @@ services:
       KC_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
       KC_REDIRECT_URI: ${KEYCLOAK_REDIRECT_URI:-http://localhost:3000/api/auth/callback/keycloak}
       KC_WEB_ORIGIN: ${KEYCLOAK_WEB_ORIGIN:-http://localhost:3000}
-      KC_METRICS_ENABLED: "true"
       TEST_USER_PASSWORD: ${KEYCLOAK_TEST_USER_PASSWORD:-Test123!}
     ports:
       - "8080:8080"
@@ -315,7 +314,6 @@ volumes:
   postgres_data:
   mosquitto_data:
   mosquitto_log:
-  prometheus_data:
   redis_data:
 
 networks:
