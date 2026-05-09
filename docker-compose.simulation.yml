@@ -226,6 +226,46 @@ services:
       timeout: 5s
       retries: 5
 
+  kong:
+    image: kong:3.4.1
+    environment:
+      - KONG_DATABASE=off
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+    ports:
+      - "8000:8000"
+      - "8002:8001"
+    depends_on:
+      - ingestion-service
+      - event-processing-service
+      - keycloak
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: on-failure
+
+  kong-jwks-sync:
+    build:
+      context: ./kong/jwks-sync
+    environment:
+      - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/pred/protocol/openid-connect/certs
+      - KONG_ADMIN_URL=http://kong:8001
+      - POLL_INTERVAL=300
+    volumes:
+      - ./kong/kong.yml:/etc/kong/kong.yml:ro
+    depends_on:
+      kong:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    restart: on-failure
+
   device-simulator:
     build:
       context: ./device-simulation
