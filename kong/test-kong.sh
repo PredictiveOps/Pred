@@ -125,7 +125,70 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Request size limiting
+# 4. OPTIONS preflight — must succeed without auth on every route
+# ---------------------------------------------------------------------------
+echo ""
+echo "-- OPTIONS preflight (no auth → 200, CORS headers present)"
+
+for path in /api/events /api/ingest; do
+  # Preflight must not be blocked by JWT (run_on_preflight: false) or the
+  # post-function (which returns early for OPTIONS).
+  preflight_status=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X OPTIONS "$KONG_PROXY$path" \
+    -H "Origin: http://localhost:3000" \
+    -H "Access-Control-Request-Method: POST" \
+    -H "Access-Control-Request-Headers: Authorization, Content-Type")
+  if [[ "$preflight_status" == "200" || "$preflight_status" == "204" ]]; then
+    pass "OPTIONS $path: no-auth preflight accepted (got $preflight_status)"
+  else
+    fail "OPTIONS $path: no-auth preflight rejected (expected 200/204, got $preflight_status)"
+  fi
+
+  # Preflight with an invalid/garbage token must also succeed — JWT plugin
+  # must not run on OPTIONS regardless of what the Authorization header says.
+  preflight_bad_token=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X OPTIONS "$KONG_PROXY$path" \
+    -H "Origin: http://localhost:3000" \
+    -H "Access-Control-Request-Method: POST" \
+    -H "Authorization: Bearer not.a.valid.token")
+  if [[ "$preflight_bad_token" == "200" || "$preflight_bad_token" == "204" ]]; then
+    pass "OPTIONS $path: invalid-token preflight still accepted (got $preflight_bad_token)"
+  else
+    fail "OPTIONS $path: invalid-token preflight was rejected (expected 200/204, got $preflight_bad_token)"
+  fi
+
+  # Preflight response must carry the required CORS headers.
+  preflight_headers=$(curl -s -o /dev/null -D - \
+    -X OPTIONS "$KONG_PROXY$path" \
+    -H "Origin: http://localhost:3000" \
+    -H "Access-Control-Request-Method: POST")
+
+  if echo "$preflight_headers" | grep -qi "Access-Control-Allow-Origin: http://localhost:3000"; then
+    pass "OPTIONS $path: Access-Control-Allow-Origin present"
+  else
+    fail "OPTIONS $path: Access-Control-Allow-Origin missing"
+  fi
+
+  if echo "$preflight_headers" | grep -qi "Access-Control-Allow-Methods:"; then
+    pass "OPTIONS $path: Access-Control-Allow-Methods present"
+  else
+    fail "OPTIONS $path: Access-Control-Allow-Methods missing"
+  fi
+
+  if echo "$preflight_headers" | grep -qi "Access-Control-Allow-Credentials: true"; then
+    pass "OPTIONS $path: Access-Control-Allow-Credentials is true"
+  else
+    fail "OPTIONS $path: Access-Control-Allow-Credentials missing or not true"
+  fi
+
+  # A non-OPTIONS request to the same path without a token must still return 401,
+  # confirming that the preflight bypass does not affect normal auth enforcement.
+  assert_status "GET $path without token still returns 401 (auth not bypassed)" \
+    "401" "$KONG_PROXY$path"
+done
+
+# ---------------------------------------------------------------------------
+# 5. Request size limiting
 # ---------------------------------------------------------------------------
 echo ""
 echo "-- Request size limiting"
@@ -149,7 +212,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Rate limiting (only when explicitly requested — it's slow)
+# 6. Rate limiting (only when explicitly requested — it's slow)
 # ---------------------------------------------------------------------------
 if [[ "${TEST_RATE_LIMIT:-false}" == "true" ]]; then
   echo ""
@@ -170,7 +233,7 @@ if [[ "${TEST_RATE_LIMIT:-false}" == "true" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 6. JWT round-trip (requires Keycloak — opt-in via --with-auth)
+# 7. JWT round-trip (requires Keycloak — opt-in via --with-auth)
 # ---------------------------------------------------------------------------
 if $WITH_AUTH; then
   echo ""
