@@ -117,6 +117,10 @@ services:
     networks:
       - pred-network
     restart: on-failure
+    develop:
+      watch:
+        - action: rebuild
+          path: ./ingestion-service
 
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.1
