@@ -334,6 +334,7 @@ volumes:
   mosquitto_data:
   mosquitto_log:
   redis_data:
+  prometheus_data:
 
 networks:
   pred-network:
