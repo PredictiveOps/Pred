@@ -243,12 +243,15 @@ services:
       context: ./notifications-service
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/notifications
-      KAFKA_BROKERS: kafka:29092
+      KAFKA_BROKERS: kafka:9092
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
         condition: service_started
+    networks:
+      - pred-network
+    restart: on-failure
 
   ml-service:
     build: ./ai-ml
