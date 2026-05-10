@@ -7,7 +7,8 @@ import (
 )
 
 // TestPipeline_WindowAggregatesAndSendsToML verifies the full path:
-//   WindowManager.Add  →  Compute  →  FeatureSink.Send
+//
+//	WindowManager.Add  →  Compute  →  FeatureSink.Send
 //
 // A short window (300ms) is used so the test completes quickly.
 func TestPipeline_WindowAggregatesAndSendsToML(t *testing.T) {

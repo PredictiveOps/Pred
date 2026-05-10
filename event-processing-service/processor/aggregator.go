@@ -78,9 +78,9 @@ func Compute(readings []SensorEvent) MLFeatures {
 		VibrationXMaximum:          xMax,
 		VibrationXPeakToPeak:       xMax - xMin,
 		VibrationXRMS:              xRMS,
-		VibrationXSkewness:         rSkew,   // scale-invariant
-		VibrationXKurtosis:         rKurt,   // scale-invariant
-		VibrationXCrestFactor:      rCrest,  // scale-invariant
+		VibrationXSkewness:         rSkew,  // scale-invariant
+		VibrationXKurtosis:         rKurt,  // scale-invariant
+		VibrationXCrestFactor:      rCrest, // scale-invariant
 		VibrationXEnergy:           xEnergy,
 		VibrationXDominantFreqIdx:  domFreq,
 		VibrationXSpectralEnergy:   xSpectralEnergy,

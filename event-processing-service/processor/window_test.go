@@ -8,9 +8,9 @@ import (
 
 // recordingFlush is a FlushFunc that records each call into a channel.
 type recordingFlush struct {
-	mu   sync.Mutex
+	mu    sync.Mutex
 	calls []flushCall
-	ch   chan flushCall
+	ch    chan flushCall
 }
 
 type flushCall struct {

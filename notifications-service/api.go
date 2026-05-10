@@ -22,7 +22,6 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-
 func notificationsHandler(gdb *gorm.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		addCORSHeaders(w)
@@ -99,7 +98,7 @@ func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/notifications", notificationsHandler(gdb))
 	mux.HandleFunc("/ws", wsHandler(hub))
-  mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", promhttp.Handler())
 
 	server := &http.Server{
 		Addr:              ":8080",

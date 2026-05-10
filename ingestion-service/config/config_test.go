@@ -14,13 +14,13 @@ func setEnv(t *testing.T, pairs map[string]string) {
 
 func requiredEnv() map[string]string {
 	return map[string]string{
-		"DATABASE_URL":                             "postgres://localhost/test",
-		"KAFKA_BROKERS":                            "localhost:9092",
-		"KAFKA_TOPIC":                              "test-topic",
-		"MQTT_CLIENT_ID":                           "test-client",
-		"MQTT_TOPIC":                               "test/topic",
-		"MQTT_DEVICE_REGISTRATION_TOPIC":           "test/register",
-		"MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC":  "test/register/response",
+		"DATABASE_URL":                   "postgres://localhost/test",
+		"KAFKA_BROKERS":                  "localhost:9092",
+		"KAFKA_TOPIC":                    "test-topic",
+		"MQTT_CLIENT_ID":                 "test-client",
+		"MQTT_TOPIC":                     "test/topic",
+		"MQTT_DEVICE_REGISTRATION_TOPIC": "test/register",
+		"MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC": "test/register/response",
 	}
 }
 
@@ -91,37 +91,37 @@ func TestLoadConfig_InvalidRedisDB(t *testing.T) {
 
 func TestLoadConfig_MQTTFields(t *testing.T) {
 	setEnv(t, map[string]string{
-		"MQTT_BROKER":                              "tcp://broker:1883",
-		"MQTT_CLIENT_ID":                           "my-client",
-		"MQTT_TOPIC":                               "sensors/#",
-		"MQTT_DEVICE_REGISTRATION_TOPIC":           "devices/register",
-		"MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC":  "devices/register/response",
-		"MQTT_USERNAME":                            "user",
-		"MQTT_PASSWORD":                            "pass",
-		"MQTT_CA_CERT":                             "/certs/ca.pem",
+		"MQTT_BROKER":                             "tcp://broker:1883",
+		"MQTT_CLIENT_ID":                          "my-client",
+		"MQTT_TOPIC":                              "sensors/#",
+		"MQTT_DEVICE_REGISTRATION_TOPIC":          "devices/register",
+		"MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC": "devices/register/response",
+		"MQTT_USERNAME":                           "user",
+		"MQTT_PASSWORD":                           "pass",
+		"MQTT_CA_CERT":                            "/certs/ca.pem",
 	})
 
 	LoadConfig()
 
 	checks := map[string]string{
-		"MQTTBroker":                              MQTTBroker,
-		"MQTTClientID":                            MQTTClientID,
-		"MQTTTopic":                               MQTTTopic,
-		"MQTTDeviceRegistrationTopic":             MQTTDeviceRegistrationTopic,
-		"MQTTDeviceRegistrationResponseTopic":     MQTTDeviceRegistrationResponseTopic,
-		"MQTTUsername":                            MQTTUsername,
-		"MQTTPassword":                            MQTTPassword,
-		"MQTTCACert":                              MQTTCACert,
+		"MQTTBroker":                          MQTTBroker,
+		"MQTTClientID":                        MQTTClientID,
+		"MQTTTopic":                           MQTTTopic,
+		"MQTTDeviceRegistrationTopic":         MQTTDeviceRegistrationTopic,
+		"MQTTDeviceRegistrationResponseTopic": MQTTDeviceRegistrationResponseTopic,
+		"MQTTUsername":                        MQTTUsername,
+		"MQTTPassword":                        MQTTPassword,
+		"MQTTCACert":                          MQTTCACert,
 	}
 	expected := map[string]string{
-		"MQTTBroker":                              "tcp://broker:1883",
-		"MQTTClientID":                            "my-client",
-		"MQTTTopic":                               "sensors/#",
-		"MQTTDeviceRegistrationTopic":             "devices/register",
-		"MQTTDeviceRegistrationResponseTopic":     "devices/register/response",
-		"MQTTUsername":                            "user",
-		"MQTTPassword":                            "pass",
-		"MQTTCACert":                              "/certs/ca.pem",
+		"MQTTBroker":                          "tcp://broker:1883",
+		"MQTTClientID":                        "my-client",
+		"MQTTTopic":                           "sensors/#",
+		"MQTTDeviceRegistrationTopic":         "devices/register",
+		"MQTTDeviceRegistrationResponseTopic": "devices/register/response",
+		"MQTTUsername":                        "user",
+		"MQTTPassword":                        "pass",
+		"MQTTCACert":                          "/certs/ca.pem",
 	}
 	for field, got := range checks {
 		if got != expected[field] {

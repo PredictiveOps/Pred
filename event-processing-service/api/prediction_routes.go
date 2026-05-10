@@ -30,9 +30,9 @@ func getPendingPredictions(gdb *gorm.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"tenant_id":    tenantID,
-			"count":        len(predictions),
-			"predictions":  predictions,
+			"tenant_id":   tenantID,
+			"count":       len(predictions),
+			"predictions": predictions,
 		})
 	}
 }
@@ -77,8 +77,8 @@ func countTrainingEligibleReviews(gdb *gorm.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"tenant_id":                  tenantID,
-			"training_eligible_count":    count,
+			"tenant_id":               tenantID,
+			"training_eligible_count": count,
 		})
 	}
 }

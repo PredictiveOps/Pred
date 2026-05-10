@@ -4,34 +4,34 @@ package processor
 // Field order matches feature_columns.json exactly.
 type MLFeatures struct {
 	// Vibration X axis — derived from resultant via equal-energy split: v_x = v_rms / √2
-	VibrationXMean              float64 `json:"vibration_x_mean"`
-	VibrationXStdDev            float64 `json:"vibration_x_standard_deviation"`
-	VibrationXMinimum           float64 `json:"vibration_x_minimum"`
-	VibrationXMaximum           float64 `json:"vibration_x_maximum"`
-	VibrationXPeakToPeak        float64 `json:"vibration_x_peak_to_peak"`
-	VibrationXRMS               float64 `json:"vibration_x_rms"`
-	VibrationXSkewness          float64 `json:"vibration_x_skewness"`
-	VibrationXKurtosis          float64 `json:"vibration_x_kurtosis"`
-	VibrationXCrestFactor       float64 `json:"vibration_x_crest_factor"`
-	VibrationXEnergy            float64 `json:"vibration_x_energy"`
-	VibrationXDominantFreqIdx   float64 `json:"vibration_x_dominant_frequency_index"`
-	VibrationXSpectralEnergy    float64 `json:"vibration_x_spectral_energy"`
-	VibrationXSpectralCentroid  float64 `json:"vibration_x_spectral_centroid_index"`
+	VibrationXMean             float64 `json:"vibration_x_mean"`
+	VibrationXStdDev           float64 `json:"vibration_x_standard_deviation"`
+	VibrationXMinimum          float64 `json:"vibration_x_minimum"`
+	VibrationXMaximum          float64 `json:"vibration_x_maximum"`
+	VibrationXPeakToPeak       float64 `json:"vibration_x_peak_to_peak"`
+	VibrationXRMS              float64 `json:"vibration_x_rms"`
+	VibrationXSkewness         float64 `json:"vibration_x_skewness"`
+	VibrationXKurtosis         float64 `json:"vibration_x_kurtosis"`
+	VibrationXCrestFactor      float64 `json:"vibration_x_crest_factor"`
+	VibrationXEnergy           float64 `json:"vibration_x_energy"`
+	VibrationXDominantFreqIdx  float64 `json:"vibration_x_dominant_frequency_index"`
+	VibrationXSpectralEnergy   float64 `json:"vibration_x_spectral_energy"`
+	VibrationXSpectralCentroid float64 `json:"vibration_x_spectral_centroid_index"`
 
 	// Vibration Y axis — symmetric with X (same equal-energy split)
-	VibrationYMean              float64 `json:"vibration_y_mean"`
-	VibrationYStdDev            float64 `json:"vibration_y_standard_deviation"`
-	VibrationYMinimum           float64 `json:"vibration_y_minimum"`
-	VibrationYMaximum           float64 `json:"vibration_y_maximum"`
-	VibrationYPeakToPeak        float64 `json:"vibration_y_peak_to_peak"`
-	VibrationYRMS               float64 `json:"vibration_y_rms"`
-	VibrationYSkewness          float64 `json:"vibration_y_skewness"`
-	VibrationYKurtosis          float64 `json:"vibration_y_kurtosis"`
-	VibrationYCrestFactor       float64 `json:"vibration_y_crest_factor"`
-	VibrationYEnergy            float64 `json:"vibration_y_energy"`
-	VibrationYDominantFreqIdx   float64 `json:"vibration_y_dominant_frequency_index"`
-	VibrationYSpectralEnergy    float64 `json:"vibration_y_spectral_energy"`
-	VibrationYSpectralCentroid  float64 `json:"vibration_y_spectral_centroid_index"`
+	VibrationYMean             float64 `json:"vibration_y_mean"`
+	VibrationYStdDev           float64 `json:"vibration_y_standard_deviation"`
+	VibrationYMinimum          float64 `json:"vibration_y_minimum"`
+	VibrationYMaximum          float64 `json:"vibration_y_maximum"`
+	VibrationYPeakToPeak       float64 `json:"vibration_y_peak_to_peak"`
+	VibrationYRMS              float64 `json:"vibration_y_rms"`
+	VibrationYSkewness         float64 `json:"vibration_y_skewness"`
+	VibrationYKurtosis         float64 `json:"vibration_y_kurtosis"`
+	VibrationYCrestFactor      float64 `json:"vibration_y_crest_factor"`
+	VibrationYEnergy           float64 `json:"vibration_y_energy"`
+	VibrationYDominantFreqIdx  float64 `json:"vibration_y_dominant_frequency_index"`
+	VibrationYSpectralEnergy   float64 `json:"vibration_y_spectral_energy"`
+	VibrationYSpectralCentroid float64 `json:"vibration_y_spectral_centroid_index"`
 
 	// Vibration Resultant — directly from the v_rms sequence
 	VibrationResultantMean             float64 `json:"vibration_resultant_mean"`
