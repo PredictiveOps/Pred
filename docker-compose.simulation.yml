@@ -79,7 +79,7 @@ services:
     build:
       context: ./ingestion-service
     environment:
-      - PORT=8003
+      - PORT=8081
       - DATABASE_URL=postgres://postgres:postgres@postgres-sim:5432/ingestion_sim
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_TOPIC=sensor_data
@@ -117,7 +117,7 @@ services:
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_TOPIC=sensor_data
       - KAFKA_GROUP_ID=event-processing-service-sim
-      - HTTP_PORT=8081
+      - HTTP_PORT=8082
       - ML_FEATURES_TOPIC=ml-features
       - WINDOW_DURATION_SECONDS=5
     depends_on:
@@ -237,7 +237,7 @@ services:
       - KONG_ADMIN_LISTEN=0.0.0.0:8001
     ports:
       - "8000:8000"
-      - "8002:8001"
+      - "8001:8001"
     depends_on:
       - ingestion-service
       - event-processing-service
@@ -270,7 +270,7 @@ services:
     build:
       context: ./device-simulation
     environment:
-      - INGESTION_HTTP_URL=http://ingestion-service:8003
+      - INGESTION_HTTP_URL=http://ingestion-service:8081
       - MQTT_BROKER_HOST=mosquitto
       - MQTT_BROKER_PORT=8883
       - MQTT_DEVICE_USERNAME=${MQTT_DEVICE_USERNAME:-pred-device}

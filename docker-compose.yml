@@ -219,7 +219,7 @@ services:
   event-processing-service:
     build: ./event-processing-service
     environment:
-      PORT: 8003
+      PORT: 8082
       MQTT_BROKER: tcp://mosquitto:1883
       MQTT_CLIENT_ID: ingestion-service
       MQTT_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
@@ -229,6 +229,8 @@ services:
       KAFKA_TOPIC: ${KAFKA_TOPIC:-notifications}
       KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-notifications-service}
       DATABASE_URL: ${NOTIFICATIONS_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/notifications}
+    ports:
+      - "8082:8082"
     depends_on:
       postgres:
         condition: service_healthy
@@ -242,8 +244,11 @@ services:
     build:
       context: ./notifications-service
     environment:
+      PORT: 8083
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/notifications
       KAFKA_BROKERS: kafka:9092
+    ports:
+      - "8083:8083"
     depends_on:
       postgres:
         condition: service_healthy
@@ -256,7 +261,7 @@ services:
   ml-service:
     build: ./ai-ml
     environment:
-      ML_PORT: ${ML_PORT:-8003}
+      ML_PORT: ${ML_PORT:-8084}
       ML_LOG_LEVEL: ${ML_LOG_LEVEL:-info}
       DATABASE_URL: ${ML_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/predictions}
       KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
@@ -264,7 +269,7 @@ services:
       ML_KAFKA_GROUP_ID: ${ML_KAFKA_GROUP_ID:-ml-service}
       ML_KAFKA_OFFSET_RESET: ${ML_KAFKA_OFFSET_RESET:-latest}
     ports:
-      - "${ML_PORT:-8003}:8003"
+      - "${ML_PORT:-8084}:8084"
     depends_on:
       postgres:
         condition: service_healthy
@@ -282,7 +287,7 @@ services:
           "--tries=1",
           "-O",
           "/dev/null",
-          "http://localhost:8003/health",
+          "http://localhost:8084/health",
         ]
       interval: 10s
       timeout: 5s
@@ -299,7 +304,7 @@ services:
       - KONG_ADMIN_LISTEN=0.0.0.0:8001
     ports:
       - "8000:8000"
-      - "8002:8001"
+      - "8001:8001"
     depends_on:
       - ingestion-service
       - event-processing-service
