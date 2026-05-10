@@ -5,7 +5,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
-      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-notifications,events,ingestion,keycloak}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-notifications,events,ingestion,keycloak,predictions}
     ports:
       - "5433:5432"
     volumes:
@@ -16,22 +16,32 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - pred-network
 
   kafka:
-    image: apache/kafka:latest
+    image: apache/kafka:4.2.0
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
       - "9092:9092"
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - pred-network
 
   redis:
     image: redis:7-alpine
@@ -45,6 +55,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - pred-network
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -62,75 +74,16 @@ services:
       - mosquitto_log:/mosquitto/log
     entrypoint: ["/bin/sh", "/mosquitto/config/entrypoint.sh"]
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/config/certs/ca.crt -u \"$${MQTT_INGESTION_USERNAME}\" -P \"$${MQTT_INGESTION_PASSWORD}\" -t '$$SYS/broker/version' -C 1 -W 5 >/dev/null 2>&1"]
+      test:
+        [
+          "CMD-SHELL",
+          'mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/config/certs/ca.crt -u "$${MQTT_INGESTION_USERNAME}" -P "$${MQTT_INGESTION_PASSWORD}" -t ''$$SYS/broker/version'' -C 1 -W 5 >/dev/null 2>&1',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  keycloak:
-    image: quay.io/keycloak/keycloak:25.0.1
-    environment:
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: ${POSTGRES_USER:-postgres}
-      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      KC_HOSTNAME: localhost
-      KC_HOSTNAME_PORT: 8080
-      KC_PROXY: edge
-      KC_ADMIN: ${KEYCLOAK_ADMIN:-admin}
-      KC_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
-      KC_REALM: ${KEYCLOAK_REALM:-prod-maintenance}
-      KC_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-web-frontend}
-      KC_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
-      KC_REDIRECT_URI: ${KEYCLOAK_REDIRECT_URI:-http://localhost:3000/api/auth/callback/keycloak}
-      KC_WEB_ORIGIN: ${KEYCLOAK_WEB_ORIGIN:-http://localhost:3000}
-      KC_METRICS_ENABLED: "true"
-      TEST_USER_PASSWORD: ${KEYCLOAK_TEST_USER_PASSWORD:-Test123!}
-    ports:
-      - "8080:8080"
-      - "9000:9000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    entrypoint: ["/bin/bash", "/opt/keycloak-config/entrypoint.sh"]
-    volumes:
-      - ./keycloak/entrypoint.sh:/opt/keycloak-config/entrypoint.sh:ro
-      - ./keycloak/configure.sh:/opt/keycloak-config/configure.sh:ro
-
-  ingestion-service:
-    build:
-      context: ./ingestion-service
-    ports:
-      - "8003:8003"
-    environment:
-      - PORT=8003
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/ingestion
-      - KAFKA_BROKERS=kafka:29092
-      - KAFKA_TOPIC=sensor_data
-      - MQTT_BROKER=tcp://mosquitto:8883
-      - MQTT_CLIENT_ID=ingestion-service
-      - MQTT_USERNAME=${MQTT_INGESTION_USERNAME:-pred-ingestion}
-      - MQTT_PASSWORD=${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
-      - MQTT_TOPIC=devices/+/data
-      - MQTT_DEVICE_REGISTRATION_TOPIC=devices/+/registration
-      - MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC=devices/%d/registration/response
-      - REDIS_ADDR=redis:6379
-      - REDIS_PASSWORD=
-      - REDIS_DB=0
-      - REDIS_PUBKEY_TTL=30m
-      - REDIS_NONCE_TTL=60s
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_started
-      mosquitto:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
+    networks:
+      - pred-network
 
   prometheus:
     image: prom/prometheus:v3.11.3
@@ -147,20 +100,147 @@ services:
       - '--web.console.templates=/usr/share/prometheus/consoles'
     restart: unless-stopped
 
+  ingestion-service:
+    build: ./ingestion-service
+    environment:
+      PORT: ${INGESTION_PORT:-8081}
+      DATABASE_URL: ${INGESTION_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/ingestion}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-device-events}
+      MQTT_BROKER: ${MQTT_BROKER:-ssl://mosquitto:8883}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-ingestion-service}
+      MQTT_TOPIC: ${MQTT_TOPIC:-devices/+/data}
+      MQTT_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
+      MQTT_PASSWORD: ${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
+      MQTT_CA_CERT: ${MQTT_CA_CERT:-/mosquitto/certs/ca.crt}
+      REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
+      MQTT_DEVICE_REGISTRATION_TOPIC: ${MQTT_DEVICE_REGISTRATION_TOPIC:-devices/+/registration}
+      MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC: ${MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC:-devices/%d/registration/response}
+    ports:
+      - "${INGESTION_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # mosquitto:
+      #   condition: service_healthy
+    volumes:
+      - ./mosquitto/certs:/mosquitto/certs:ro
+    networks:
+      - pred-network
+    restart: on-failure
+    develop:
+      watch:
+        - action: rebuild
+          path: ./ingestion-service
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0.1
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8080
+      KC_PROXY: edge
+      KC_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KC_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+      KC_REALM: ${KEYCLOAK_REALM:-pred}
+      KC_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-web-frontend}
+      KC_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
+      KC_REDIRECT_URI: ${KEYCLOAK_REDIRECT_URI:-http://localhost:3000/api/auth/callback/keycloak}
+      KC_WEB_ORIGIN: ${KEYCLOAK_WEB_ORIGIN:-http://localhost:3000}
+      TEST_USER_PASSWORD: ${KEYCLOAK_TEST_USER_PASSWORD:-Test123!}
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/opt/keycloak-config/entrypoint.sh"]
+    volumes:
+      - ./keycloak/entrypoint.sh:/opt/keycloak-config/entrypoint.sh:ro
+      - ./keycloak/configure.sh:/opt/keycloak-config/configure.sh:ro
+    networks:
+      - pred-network
+
+  web-frontend:
+    build:
+      context: ./web-frontend
+      target: builder
+    command: npm run dev
+    environment:
+      NODE_ENV: development
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-32-character-secret-key-here-change-in-production}
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KEYCLOAK_PUBLIC_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-pred}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-web-frontend}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
+    ports:
+      - "${WEB_FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      keycloak:
+        condition: service_started
+    networks:
+      - pred-network
+    restart: on-failure
+    volumes:
+      - ./web-frontend/app:/app/app
+      - ./web-frontend/components:/app/components
+      - ./web-frontend/lib:/app/lib
+      - ./web-frontend/hooks:/app/hooks
+      - ./web-frontend/public:/app/public
+      - ./web-frontend/next.config.ts:/app/next.config.ts
+    develop:
+      watch:
+        - action: rebuild
+          path: ./web-frontend/package.json
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   event-processing-service:
     build:
       context: ./event-processing-service
     ports:
       - "8001:8001"
     environment:
-      - HTTP_PORT=8001
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/events
-      - KAFKA_BROKERS=kafka:29092
+      PORT: 8003
+      MQTT_BROKER: tcp://mosquitto:1883
+      MQTT_CLIENT_ID: ingestion-service
+      MQTT_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
+      MQTT_PASSWORD: ${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
+      MQTT_TOPIC: sensors/data
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:29092}
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-notifications}
+      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-notifications-service}
+      DATABASE_URL: ${NOTIFICATIONS_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/notifications}
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
         condition: service_started
+    networks:
+      - pred-network
+    restart: on-failure
 
   notifications-service:
     build:
@@ -168,13 +248,51 @@ services:
     ports:
       - "8082:8080"
     environment:
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/notifications
-      - KAFKA_BROKERS=kafka:29092
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/notifications
+      KAFKA_BROKERS: kafka:9092
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
         condition: service_started
+    networks:
+      - pred-network
+    restart: on-failure
+
+  ml-service:
+    build: ./ai-ml
+    environment:
+      ML_PORT: ${ML_PORT:-8003}
+      ML_LOG_LEVEL: ${ML_LOG_LEVEL:-info}
+      DATABASE_URL: ${ML_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/predictions}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
+      ML_FEATURES_TOPIC: ${ML_FEATURES_TOPIC:-ml-features}
+      ML_KAFKA_GROUP_ID: ${ML_KAFKA_GROUP_ID:-ml-service}
+      ML_KAFKA_OFFSET_RESET: ${ML_KAFKA_OFFSET_RESET:-latest}
+    ports:
+      - "${ML_PORT:-8003}:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - pred-network
+    restart: on-failure
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "-O",
+          "/dev/null",
+          "http://localhost:8003/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kong:
     image: kong:3.4.1
@@ -193,23 +311,41 @@ services:
       - ingestion-service
       - event-processing-service
       - keycloak
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - pred-network
+    restart: on-failure
 
   kong-jwks-sync:
     build:
       context: ./kong/jwks-sync
     environment:
-      - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/prod-maintenance/protocol/openid-connect/certs
+      - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/pred/protocol/openid-connect/certs
       - KONG_ADMIN_URL=http://kong:8001
       - POLL_INTERVAL=300
     volumes:
       - ./kong/kong.yml:/etc/kong/kong.yml:ro
     depends_on:
-      - kong
-      - keycloak
+      kong:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    networks:
+      - pred-network
+    restart: on-failure
 
 volumes:
   postgres_data:
   mosquitto_data:
   mosquitto_log:
-  prometheus_data:
   redis_data:
+  prometheus_data:
+
+networks:
+  pred-network:
+    driver: bridge

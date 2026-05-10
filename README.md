@@ -72,16 +72,35 @@ For MQTT broker setup and credentials, see [mosquitto/README.md](./mosquitto/REA
 
 ### Running tests
 
-Go services share a single test Postgres instance (host port `5434`) defined in `docker-compose.test.yml`, which hosts a separate database per service. It runs alongside the dev compose without conflict:
+Go services share a test Postgres instance (host port `5434`) and a test Kafka broker (host port `19092`) defined in `docker-compose.test.yml`. Each service gets its own database in the test Postgres. Both run alongside the dev compose without port conflicts.
+
+Run all service tests and end-to-end tests in one command from the repo root:
+
+```sh
+make test-all      # brings up test infra, runs all service tests in parallel + e2e, tears down on exit
+make test-down-all # tear down test infra manually if needed
+```
+
+To test a single service:
 
 ```sh
 cd notifications-service
-make test         # brings up the test Postgres and runs `go test ./...`
+make test         # brings up test infra and runs `go test ./...`
 make test-down    # tear down when finished
 
 cd ../event-processing-service
 make test
 make test-down
+```
+
+## Multi-tenancy
+
+Tenant identity flows through the system via the `X-Tenant-Id` HTTP header. Kong extracts the `tenant_id` claim from the Keycloak JWT and forwards it as `X-Tenant-Id` to upstream services. Services must not trust a tenant ID supplied in request bodies or URL parameters — they read exclusively from this header.
+
+When calling services directly (bypassing Kong, e.g. in local development), supply the header manually:
+
+```sh
+curl -H 'X-Tenant-Id: <tenant_id>' ...
 ```
 
 ## Services

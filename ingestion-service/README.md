@@ -43,23 +43,35 @@ cp .env.example .env
 go run .
 ```
 
-## HTTP API: Device registration
+## HTTP API: Device management
 
-Register a device (creates DB entry). Endpoint:
+Tenant identity is passed via the `X-Tenant-Id` header on all device endpoints. Kong extracts this from the JWT and forwards it automatically; supply it manually when calling the service directly.
 
-- `POST /devices/register` — body: `{ "device_id": <uint>, "tenant_id": <uint> }`
+### Register a device
 
-Example:
+Creates a DB entry for a device under the calling tenant.
+
+- `POST /devices/register` — header: `X-Tenant-Id: <tenant_id>`, body: `{ "device_id": <uint> }`
 
 ```sh
 curl -s -X POST http://localhost:2500/devices/register \
 	-H 'Content-Type: application/json' \
-	-d '{"device_id":1,"tenant_id":1}' | jq .
+	-H 'X-Tenant-Id: tenant-abc' \
+	-d '{"device_id":1}' | jq .
 ```
 
 On success you will receive `{"registration_status":"ok"}` (HTTP 201).
 
 If you see `{"error":"failed to register device"}` the service logged the underlying DB error — check the service logs for details (timestamp mismatch or schema issues are common when models change).
+
+### List devices for the calling tenant
+
+- `GET /devices` — header: `X-Tenant-Id: <tenant_id>`
+
+```sh
+curl -s http://localhost:2500/devices \
+	-H 'X-Tenant-Id: tenant-abc' | jq .
+```
 
 ## MQTT Device Data Payload Format
 

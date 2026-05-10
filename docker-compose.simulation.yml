@@ -1,0 +1,292 @@
+services:
+  postgres-sim:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_MULTIPLE_DATABASES: ingestion_sim,events_sim,notifications_sim,keycloak_sim
+    volumes:
+      - ./postgres/init:/docker-entrypoint-initdb.d
+      - postgres_sim_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ingestion_sim"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  kafka:
+    image: apache/kafka:4.2.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:29092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8085:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      - kafka
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    user: root
+    environment:
+      MQTT_DEVICE_USERNAME: ${MQTT_DEVICE_USERNAME:-pred-device}
+      MQTT_DEVICE_PASSWORD: ${MQTT_DEVICE_PASSWORD:-dev-device-password}
+      MQTT_INGESTION_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
+      MQTT_INGESTION_PASSWORD: ${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
+    volumes:
+      - ./mosquitto:/mosquitto/config
+      - mosquitto_sim_data:/mosquitto/data
+      - mosquitto_sim_log:/mosquitto/log
+    entrypoint: ["/bin/sh", "/mosquitto/config/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/config/certs/ca.crt -u \"$${MQTT_INGESTION_USERNAME}\" -P \"$${MQTT_INGESTION_PASSWORD}\" -t '$$SYS/broker/version' -C 1 -W 5 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_sim_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ingestion-service:
+    build:
+      context: ./ingestion-service
+    environment:
+      - PORT=8003
+      - DATABASE_URL=postgres://postgres:postgres@postgres-sim:5432/ingestion_sim
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC=sensor_data
+      - MQTT_BROKER=ssl://mosquitto:8883
+      - MQTT_CLIENT_ID=ingestion-service-sim
+      - MQTT_USERNAME=${MQTT_INGESTION_USERNAME:-pred-ingestion}
+      - MQTT_PASSWORD=${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
+      - MQTT_CA_CERT=/mosquitto/certs/ca.crt
+      - MQTT_TOPIC=devices/+/data
+      - MQTT_DEVICE_REGISTRATION_TOPIC=devices/+/registration
+      - MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC=devices/%d/registration/response
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - REDIS_PUBKEY_TTL=30m
+      - REDIS_NONCE_TTL=60s
+    volumes:
+      - ./mosquitto/certs:/mosquitto/certs:ro
+    depends_on:
+      postgres-sim:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  event-processing-service:
+    build:
+      context: ./event-processing-service
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres-sim:5432/events_sim
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC=sensor_data
+      - KAFKA_GROUP_ID=event-processing-service-sim
+      - HTTP_PORT=8081
+      - ML_FEATURES_TOPIC=ml-features
+      - WINDOW_DURATION_SECONDS=5
+    depends_on:
+      postgres-sim:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ml-service:
+    build:
+      context: ./ai-ml
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres-sim:5432/events_sim
+      - KAFKA_BROKERS=kafka:29092
+      - ML_FEATURES_TOPIC=ml-features
+      - ML_KAFKA_GROUP_ID=ml-service-sim
+    depends_on:
+      postgres-sim:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notifications-service:
+    build:
+      context: ./notifications-service
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres-sim:5432/notifications_sim
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC=notifications
+      - KAFKA_GROUP_ID=notifications-service-sim
+      - EMAIL_PROVIDER=stub
+    depends_on:
+      postgres-sim:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0.1
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres-sim:5432/keycloak_sim
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8080
+      KC_PROXY: edge
+      KC_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KC_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+      KC_REALM: ${KEYCLOAK_REALM:-pred}
+      KC_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-web-frontend}
+      KC_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
+      KC_REDIRECT_URI: ${KEYCLOAK_REDIRECT_URI:-http://localhost:3000/api/auth/callback/keycloak}
+      KC_WEB_ORIGIN: ${KEYCLOAK_WEB_ORIGIN:-http://localhost:3000}
+      TEST_USER_PASSWORD: ${KEYCLOAK_TEST_USER_PASSWORD:-Test123!}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres-sim:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/opt/keycloak-config/entrypoint.sh"]
+    volumes:
+      - ./keycloak/entrypoint.sh:/opt/keycloak-config/entrypoint.sh:ro
+      - ./keycloak/configure.sh:/opt/keycloak-config/configure.sh:ro
+    restart: on-failure
+
+  web-frontend:
+    build:
+      context: ./web-frontend
+      target: builder
+    command: npm run dev
+    environment:
+      NODE_ENV: development
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-32-character-secret-key-here-change-in-production}
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KEYCLOAK_PUBLIC_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-pred}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-web-frontend}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-web-frontend-secret}
+    ports:
+      - "${WEB_FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      keycloak:
+        condition: service_started
+    restart: on-failure
+    volumes:
+      - ./web-frontend/app:/app/app
+      - ./web-frontend/components:/app/components
+      - ./web-frontend/lib:/app/lib
+      - ./web-frontend/hooks:/app/hooks
+      - ./web-frontend/public:/app/public
+      - ./web-frontend/next.config.ts:/app/next.config.ts
+    develop:
+      watch:
+        - action: rebuild
+          path: ./web-frontend/package.json
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kong:
+    image: kong:3.4.1
+    environment:
+      - KONG_DATABASE=off
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+    ports:
+      - "8000:8000"
+      - "8002:8001"
+    depends_on:
+      - ingestion-service
+      - event-processing-service
+      - keycloak
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: on-failure
+
+  kong-jwks-sync:
+    build:
+      context: ./kong/jwks-sync
+    environment:
+      - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/pred/protocol/openid-connect/certs
+      - KONG_ADMIN_URL=http://kong:8001
+      - POLL_INTERVAL=300
+    volumes:
+      - ./kong/kong.yml:/etc/kong/kong.yml:ro
+    depends_on:
+      kong:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    restart: on-failure
+
+  device-simulator:
+    build:
+      context: ./device-simulation
+    environment:
+      - INGESTION_HTTP_URL=http://ingestion-service:8003
+      - MQTT_BROKER_HOST=mosquitto
+      - MQTT_BROKER_PORT=8883
+      - MQTT_DEVICE_USERNAME=${MQTT_DEVICE_USERNAME:-pred-device}
+      - MQTT_DEVICE_PASSWORD=${MQTT_DEVICE_PASSWORD:-dev-device-password}
+      - MQTT_CA_CERT=/mosquitto/certs/ca.crt
+      - TENANT_ID=1
+      - SEND_INTERVAL_MIN=5
+      - SEND_INTERVAL_MAX=30
+    volumes:
+      - ./mosquitto/certs:/mosquitto/certs:ro
+    depends_on:
+      - ingestion-service
+    restart: unless-stopped
+
+volumes:
+  postgres_sim_data:
+  mosquitto_sim_data:
+  mosquitto_sim_log:
+  redis_sim_data:

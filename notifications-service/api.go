@@ -10,15 +10,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gorm.io/gorm"
-)
 
-type NotificationResponse struct {
-	ID        int64           `json:"id"`
-	TenantID  string          `json:"tenant_id"`
-	Type      string          `json:"type"`
-	Payload   json.RawMessage `json:"payload"`
-	CreatedAt time.Time       `json:"created_at"`
-}
+	"notifications-service/db"
+)
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -28,10 +22,9 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-func startHTTPServer(gdb *gorm.DB, hub *Hub) {
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
-	mux.HandleFunc("/notifications", func(w http.ResponseWriter, r *http.Request) {
+
+func notificationsHandler(gdb *gorm.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		addCORSHeaders(w)
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -62,16 +55,7 @@ func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 			limit = 100
 		}
 
-		var notifs []NotificationResponse
-
-		err := gdb.Raw(`
-			SELECT id, tenant_id, type, payload, created_at
-			FROM notifications
-			WHERE tenant_id = ?
-			ORDER BY created_at DESC
-			LIMIT ?
-		`, tenantID, limit).Scan(&notifs).Error
-
+		notifs, err := db.GetNotifications(r.Context(), gdb, tenantID, limit)
 		if err != nil {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
@@ -80,9 +64,11 @@ func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		json.NewEncoder(w).Encode(notifs)
-	})
+	}
+}
 
-	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+func wsHandler(hub *Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		tenantID := r.URL.Query().Get("tenant_id")
 		if tenantID == "" {
 			http.Error(w, "tenant_id is required", http.StatusBadRequest)
@@ -106,7 +92,14 @@ func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 
 		go client.writePump()
 		go client.readPump()
-	})
+	}
+}
+
+func startHTTPServer(gdb *gorm.DB, hub *Hub) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/notifications", notificationsHandler(gdb))
+	mux.HandleFunc("/ws", wsHandler(hub))
+  mux.Handle("/metrics", promhttp.Handler())
 
 	server := &http.Server{
 		Addr:              ":8080",

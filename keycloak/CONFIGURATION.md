@@ -8,7 +8,7 @@ is idempotent — re-running it is a no-op.
 
 ## What gets provisioned
 
-- **Realm:** `prod-maintenance` (password policy: `length(8) and specialChars(1) and digits(1)`, brute-force protection on)
+- **Realm:** `pred` (password policy: `length(8) and specialChars(1) and digits(1)`, brute-force protection on)
 - **Client scope:** `tenant` with a `tenant_id` user-attribute mapper, attached as a default scope on the client so `tenant_id` is in every token.
 - **Client:** `web-frontend` (confidential, standard flow only) with:
   - Redirect URI: `http://localhost:3000/api/auth/callback/keycloak`
@@ -57,7 +57,7 @@ These are called automatically by NextAuth — no need to call manually:
 
 Realm-scoped base URL example:
 ```
-http://localhost:8080/realms/prod-maintenance/.well-known/openid-configuration
+http://localhost:8080/realms/pred/.well-known/openid-configuration
 ```
 
 ## Production Checklist

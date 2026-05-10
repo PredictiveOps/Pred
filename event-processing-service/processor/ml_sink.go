@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -22,8 +23,9 @@ type KafkaFeatureSink struct {
 func NewKafkaFeatureSink(brokers []string, topic string) *KafkaFeatureSink {
 	return &KafkaFeatureSink{
 		writer: &kafka.Writer{
-			Addr:  kafka.TCP(brokers...),
-			Topic: topic,
+			Addr:                   kafka.TCP(brokers...),
+			Topic:                  topic,
+			AllowAutoTopicCreation: true,
 		},
 	}
 }
@@ -36,7 +38,7 @@ func (s *KafkaFeatureSink) Send(ctx context.Context, payload MLRequest) error {
 	}
 
 	msg := kafka.Message{
-		Key:   []byte(payload.DeviceID),
+		Key:   []byte(strconv.FormatUint(uint64(payload.DeviceID), 10)),
 		Value: body,
 	}
 

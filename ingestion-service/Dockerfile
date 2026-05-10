@@ -1,21 +1,27 @@
-FROM golang:alpine AS builder
+# --------- Stage 1: Build ---------
+FROM golang:1.26.2-alpine AS builder
 WORKDIR /app
-
-# Download dependencies first for better caching
 COPY go.mod go.sum ./
 RUN go mod download
-
-# Copy source and build
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o main .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ingestion-service .
 
-FROM alpine:latest
-WORKDIR /root/
+# --------- Stage 2: Runtime ---------
+FROM alpine:3.23
+WORKDIR /app
+COPY --from=builder /app/ingestion-service .
+EXPOSE 8081
 
-# Copy the pre-built binary file from the previous stage
-COPY --from=builder /app/main .
+# Default environment variables
+ENV PORT=8081
+ENV DATABASE_URL="postgres://postgres:postgres@host.docker.internal:5433/ingestion?sslmode=disable"
+ENV KAFKA_BROKERS="host.docker.internal:9092"
+ENV KAFKA_TOPIC="ingestion_events"
+ENV MQTT_BROKER="tcp://host.docker.internal:1883"
+ENV MQTT_CLIENT_ID="ingestion-service-dev"
+ENV MQTT_TOPIC="devices/+/data"
+ENV MQTT_USERNAME=""
+ENV MQTT_PASSWORD=""
 
-# Copy .env file
-COPY .env .env
-
-CMD ["./main"]
+# Run the service
+CMD ["./ingestion-service"]

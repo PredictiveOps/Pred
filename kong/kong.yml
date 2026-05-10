@@ -3,7 +3,7 @@ _format_version: "3.0"
 upstreams:
   - name: event-processing-upstream
     targets:
-      - target: event-processing-service:8001
+      - target: event-processing-service:8080
         weight: 100
     healthchecks:
       active:
@@ -22,7 +22,7 @@ upstreams:
 
   - name: ingestion-upstream
     targets:
-      - target: ingestion-service:8003
+      - target: ingestion-service:8081
         weight: 100
     healthchecks:
       active:
@@ -54,6 +54,65 @@ services:
               key_claim_name: iss
               claims_to_verify:
                 - exp
+              run_on_preflight: false
+          - name: post-function
+            config:
+              access:
+                - |
+                  -- Extract tenant_id from the (already-required) Bearer JWT and forward it.
+                  -- We intentionally overwrite any client-provided value to prevent spoofing.
+                  if kong.request.get_method() == "OPTIONS" then
+                    return
+                  end
+                  local auth = kong.request.get_header("authorization")
+                  kong.service.request.clear_header("X-Tenant-Id")
+                  if not auth then
+                    return
+                  end
+
+                  -- Capture only the token (exclude any trailing whitespace).
+                  local m = ngx.re.match(auth, [[^\s*Bearer\s+([^\s]+)\s*$]], "jo")
+                  if not m then
+                    return
+                  end
+
+                  local token = m[1]
+                  local parts = {}
+                  for p in token:gmatch("[^%.]+") do
+                    parts[#parts + 1] = p
+                  end
+                  -- JWTs must be header.payload.signature (3 segments).
+                  if #parts < 3 then
+                    return
+                  end
+
+                  local function b64url_decode(input)
+                    input = input:gsub("-", "+"):gsub("_", "/")
+                    local pad = #input % 4
+                    if pad == 2 then
+                      input = input .. "=="
+                    elseif pad == 3 then
+                      input = input .. "="
+                    elseif pad == 1 then
+                      return nil
+                    end
+                    return ngx.decode_base64(input)
+                  end
+
+                  local payload_json = b64url_decode(parts[2])
+                  if not payload_json then
+                    return
+                  end
+
+                  -- Sandbox-friendly claim extraction (no JSON libs allowed).
+                  local tm = ngx.re.match(payload_json, [["tenant_id"\s*:\s*"([^"]+)"]], "jo")
+                  local tenant_id = tm and tm[1]
+
+                  if not tenant_id or tenant_id == "" then
+                    return kong.response.exit(403, { message = "tenant_id missing in token" })
+                  end
+
+                  kong.service.request.set_header("X-Tenant-Id", tenant_id)
 
   - name: ingestion
     host: ingestion-upstream
@@ -68,6 +127,65 @@ services:
               key_claim_name: iss
               claims_to_verify:
                 - exp
+              run_on_preflight: false
+          - name: post-function
+            config:
+              access:
+                - |
+                  -- Extract tenant_id from the (already-required) Bearer JWT and forward it.
+                  -- We intentionally overwrite any client-provided value to prevent spoofing.
+                  if kong.request.get_method() == "OPTIONS" then
+                    return
+                  end
+                  local auth = kong.request.get_header("authorization")
+                  kong.service.request.clear_header("X-Tenant-Id")
+                  if not auth then
+                    return
+                  end
+
+                  -- Capture only the token (exclude any trailing whitespace).
+                  local m = ngx.re.match(auth, [[^\s*Bearer\s+([^\s]+)\s*$]], "jo")
+                  if not m then
+                    return
+                  end
+
+                  local token = m[1]
+                  local parts = {}
+                  for p in token:gmatch("[^%.]+") do
+                    parts[#parts + 1] = p
+                  end
+                  -- JWTs must be header.payload.signature (3 segments).
+                  if #parts < 3 then
+                    return
+                  end
+
+                  local function b64url_decode(input)
+                    input = input:gsub("-", "+"):gsub("_", "/")
+                    local pad = #input % 4
+                    if pad == 2 then
+                      input = input .. "=="
+                    elseif pad == 3 then
+                      input = input .. "="
+                    elseif pad == 1 then
+                      return nil
+                    end
+                    return ngx.decode_base64(input)
+                  end
+
+                  local payload_json = b64url_decode(parts[2])
+                  if not payload_json then
+                    return
+                  end
+
+                  -- Sandbox-friendly claim extraction (no JSON libs allowed).
+                  local tm = ngx.re.match(payload_json, [["tenant_id"\s*:\s*"([^"]+)"]], "jo")
+                  local tenant_id = tm and tm[1]
+
+                  if not tenant_id or tenant_id == "" then
+                    return kong.response.exit(403, { message = "tenant_id missing in token" })
+                  end
+
+                  kong.service.request.set_header("X-Tenant-Id", tenant_id)
 
 plugins:
   - name: cors
@@ -89,6 +207,7 @@ plugins:
         - Content-Type
         - Date
         - Authorization
+        - X-Tenant-Id
       exposed_headers:
         - Authorization
       credentials: true
@@ -119,7 +238,7 @@ consumers:
 
 jwt_secrets:
   - consumer: keycloak-consumer
-    key: "http://localhost:8080/realms/prod-maintenance"
+    key: "http://localhost:8080/realms/pred"
     algorithm: RS256
     # Placeholder — replaced at runtime by the kong-jwks-sync sidecar with the
     # current Keycloak signing key, then POSTed to Kong's Admin API /config.

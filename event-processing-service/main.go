@@ -56,7 +56,7 @@ func main() {
 	}()
 	windowDuration := time.Duration(windowSecs) * time.Second
 
-	windowManager := processor.NewWindowManager(windowDuration, func(tenantID, deviceID string, readings []processor.SensorEvent) {
+	windowManager := processor.NewWindowManager(windowDuration, func(tenantID string, deviceID uint, readings []processor.SensorEvent) {
 		features := processor.Compute(readings)
 		payload := processor.MLRequest{
 			DeviceID: deviceID,
@@ -64,9 +64,9 @@ func main() {
 			Features: features,
 		}
 		if err := mlSink.Send(context.Background(), payload); err != nil {
-			log.Printf("[ml] enqueue error device=%q: %v", deviceID, err)
+			log.Printf("[ml] enqueue error device=%d: %v", deviceID, err)
 		} else {
-			log.Printf("[ml] enqueued features device=%q tenant=%q readings=%d", deviceID, tenantID, len(readings))
+			log.Printf("[ml] enqueued features device=%d tenant=%q readings=%d", deviceID, tenantID, len(readings))
 		}
 	})
 
@@ -127,7 +127,7 @@ func handleMessage(ctx context.Context, gdb *gorm.DB, wm *processor.WindowManage
 		return fmt.Errorf("insert event: %w", err)
 	}
 
-	log.Printf("event stored (id %d, device %q, tenant %q)", id, event.DeviceID, event.TenantID)
+	log.Printf("event stored (id %d, device %d, tenant %q)", id, event.DeviceID, event.TenantID)
 	wm.Add(event)
 	return nil
 }
