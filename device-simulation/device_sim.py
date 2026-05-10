@@ -194,9 +194,12 @@ class DeviceSimulator:
 
     def _wait_for_ingestion(self, retries: int = 30, delay: float = 2.0) -> None:
         url = f"{INGESTION_HTTP_URL}/health"
+        self.log.info("Checking ingestion service health at %s", url)
         for attempt in range(1, retries + 1):
             try:
                 r = requests.get(url, timeout=3)
+                self.log.info("Ingestion service health check response: %s", r.status_code)
+                self.log.info("Ingestion service health check response text: %s", r.text)
                 if r.status_code < 500:
                     return
             except requests.RequestException:
