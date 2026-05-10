@@ -257,6 +257,7 @@ services:
       - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/pred/protocol/openid-connect/certs
       - KONG_ADMIN_URL=http://kong:8001
       - POLL_INTERVAL=300
+      - no_proxy=${no_proxy},keycloak
     volumes:
       - ./kong/kong.yml:/etc/kong/kong.yml:ro
     depends_on:
