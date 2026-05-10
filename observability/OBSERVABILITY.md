@@ -27,13 +27,35 @@ Prometheus is configured to collect metrics from all microservices. This documen
            └──────────────────────────┘
 ```
 
+## Quick Start
+
+1. **Start the stack**:
+
+   ```bash
+   docker compose up -d
+   ```
+
+2. **Access Prometheus**:
+   - UI: http://localhost:9090
+   - Targets: http://localhost:9090/targets — all services should show "UP"
+
+3. **Stop**:
+
+   ```bash
+   docker compose down        # stop
+   docker compose down -v     # stop and remove volumes
+   ```
+
 ## Configuration
 
-Prometheus configuration is defined in [prometheus.yml](./prometheus/prometheus.yml). All services are configured with:
+Prometheus configuration is defined in [prometheus/prometheus.yml](./prometheus/prometheus.yml). All services are configured with:
 
 - **Scrape interval**: 15 seconds
 - **Metrics path**: `/metrics`
 - **Timeout**: 10 seconds (default)
+- **Retention**: 15 days
+
+To apply changes: edit `prometheus/prometheus.yml`, then `docker compose restart prometheus`.
 
 ### Scrape Targets
 
@@ -45,61 +67,21 @@ Prometheus configuration is defined in [prometheus.yml](./prometheus/prometheus.
 | keycloak                 | keycloak                 | 8080 | `/metrics` |
 | kong                     | kong                     | 8000 | `/metrics` |
 
-## Running Prometheus
+## Metrics Endpoints
 
-Prometheus is automatically started by `docker-compose`:
+**Docker Compose (internal)**:
 
-```bash
-docker compose up -d
-```
+- `http://ingestion-service:8003/metrics`
+- `http://event-processing-service:8001/metrics`
+- `http://notifications-service:8080/metrics`
+- `http://keycloak:8080/metrics`
+- `http://kong:8000/metrics`
 
-Access the Prometheus UI at: **http://localhost:9090**
+**Local development (host)**:
 
-To stop:
-
-```bash
-docker compose down
-```
-
-To stop and remove volumes:
-
-```bash
-docker compose down -v
-```
-
-## Prometheus UI Features
-
-### Querying Metrics
-
-1. **Graph Tab** — Execute PromQL queries and view results as time-series graphs
-2. **Alerts Tab** — View alert status (if configured)
-3. **Status Tab** — Check service configuration, targets, and rules
-
-### Example Queries
-
-View HTTP request rate (requests/sec):
-
-```promql
-rate(http_requests_total[5m])
-```
-
-View 95th percentile request latency:
-
-```promql
-histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
-```
-
-View memory usage by service:
-
-```promql
-process_resident_memory_bytes
-```
-
-View goroutine count:
-
-```promql
-go_goroutines
-```
+- `http://localhost:8003/metrics`
+- `http://localhost:8001/metrics`
+- `http://localhost:8080/metrics`
 
 ## Standard Metrics Exposed
 
@@ -117,9 +99,29 @@ All services that have integrated Prometheus expose the following metrics:
 - `go_goroutines` — Number of active goroutines
 - `go_gc_duration_seconds` — GC stop-the-world duration
 
-## Adding Custom Metrics
+## Useful PromQL Queries
 
-To add custom application metrics to a service:
+```promql
+# Request rate (requests/sec)
+rate(http_requests_total[5m])
+
+# 95th percentile latency
+histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+
+# Memory usage in MB
+process_resident_memory_bytes / 1024 / 1024
+
+# Error rate (5xx)
+rate(http_requests_total{status=~"5.."}[5m])
+
+# Requests by service
+sum(rate(http_requests_total[5m])) by (job)
+
+# Active goroutines
+go_goroutines
+```
+
+## Adding Custom Metrics
 
 1. **Import the Prometheus client library**:
 
@@ -149,28 +151,40 @@ To add custom application metrics to a service:
    eventsProcessed.WithLabelValues(tenantID, "success").Inc()
    ```
 
-4. **Verify the metric** is exported at `/metrics`
+4. **Verify** the metric is exported at `/metrics`
+
+## Implementation Status
+
+| Item                             | Status         |
+| -------------------------------- | -------------- |
+| Prometheus configuration         | ✅ Complete    |
+| ingestion-service metrics        | ✅ Active      |
+| event-processing-service metrics | ✅ Implemented |
+| notifications-service metrics    | ✅ Implemented |
+| keycloak metrics                 | ✅ Configured  |
+| kong metrics                     | ✅ Configured  |
+| Prometheus UI                    | ✅ Working     |
 
 ## Troubleshooting
 
 ### Service not appearing in Prometheus targets
 
-1. Check `http://localhost:9090/targets` — ensure all services show "UP"
-2. Verify the service is running (`docker ps`)
-3. Verify the service exposes `/metrics` (curl to test)
-4. Check Prometheus logs: `docker logs prometheus`
+1. Check http://localhost:9090/targets — ensure all services show "UP"
+2. Verify the service is running: `docker compose ps`
+3. Verify the service exposes `/metrics`: `curl http://localhost:8003/metrics`
+4. Check Prometheus logs: `docker compose logs prometheus`
 
 ### Metrics not updating
 
-1. Verify scrape interval in [prometheus.yml](./prometheus/prometheus.yml) — default is 15 seconds
-2. Check if the service is actively serving metrics — curl `/metrics` directly
+1. Verify scrape interval in `prometheus/prometheus.yml` — default is 15 seconds
+2. Metrics take time to accumulate — wait at least one scrape interval and generate some traffic first
 3. Check network connectivity between Prometheus and the service
 
 ### Prometheus consuming too much memory
 
 1. Reduce retention: adjust `--storage.tsdb.retention.time` in `docker-compose.yml` (default: 15d)
-2. Reduce scrape frequency: increase `scrape_interval` in [prometheus.yml](./prometheus/prometheus.yml)
-3. Filter unnecessary metrics using `metric_relabel_configs` in [prometheus.yml](./prometheus/prometheus.yml)
+2. Reduce scrape frequency: increase `scrape_interval` in `prometheus/prometheus.yml`
+3. Filter unnecessary metrics using `metric_relabel_configs` in `prometheus/prometheus.yml`
 
 ## References
 
