@@ -32,7 +32,7 @@ func main() {
 	topic := getEnv("KAFKA_TOPIC", "events")
 	groupID := getEnv("KAFKA_GROUP_ID", "event-processing-service")
 	dbURL := getEnv("DATABASE_URL", "postgres://localhost:5432/events")
-	httpPort := getEnv("HTTP_PORT", "8081")
+	httpPort := getEnv("HTTP_PORT", "8082")
 	mlTopic := getEnv("ML_FEATURES_TOPIC", "ml-features")
 	windowSecs := getEnvInt("WINDOW_DURATION_SECONDS", 5)
 
