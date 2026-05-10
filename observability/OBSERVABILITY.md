@@ -46,6 +46,30 @@ Prometheus is configured to collect metrics from all microservices. This documen
    docker compose down -v     # stop and remove volumes
    ```
 
+## Common Commands
+
+```bash
+# Start monitoring stack
+docker compose up -d
+
+# Check scrape targets
+open http://localhost:9090/targets
+
+# Query metrics interactively
+open http://localhost:9090/graph
+
+# Curl a service metrics endpoint directly
+curl http://localhost:8003/metrics  # ingestion-service
+curl http://localhost:8001/metrics  # event-processing-service
+curl http://localhost:8080/metrics  # notifications-service
+
+# Restart Prometheus after config changes
+docker compose restart prometheus
+
+# View Prometheus logs
+docker compose logs prometheus
+```
+
 ## Configuration
 
 Prometheus configuration is defined in [prometheus/prometheus.yml](./prometheus/prometheus.yml). All services are configured with:
@@ -167,24 +191,13 @@ go_goroutines
 
 ## Troubleshooting
 
-### Service not appearing in Prometheus targets
-
-1. Check http://localhost:9090/targets — ensure all services show "UP"
-2. Verify the service is running: `docker compose ps`
-3. Verify the service exposes `/metrics`: `curl http://localhost:8003/metrics`
-4. Check Prometheus logs: `docker compose logs prometheus`
-
-### Metrics not updating
-
-1. Verify scrape interval in `prometheus/prometheus.yml` — default is 15 seconds
-2. Metrics take time to accumulate — wait at least one scrape interval and generate some traffic first
-3. Check network connectivity between Prometheus and the service
-
-### Prometheus consuming too much memory
-
-1. Reduce retention: adjust `--storage.tsdb.retention.time` in `docker-compose.yml` (default: 15d)
-2. Reduce scrape frequency: increase `scrape_interval` in `prometheus/prometheus.yml`
-3. Filter unnecessary metrics using `metric_relabel_configs` in `prometheus/prometheus.yml`
+| Issue                         | Solution                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| Service shows "DOWN"          | Verify it's running: `docker compose ps`; curl its `/metrics` endpoint directly |
+| No metrics data               | Wait 15s+ for first scrape; generate traffic first                              |
+| Can't access `/metrics`       | Check service is up; verify port binding                                        |
+| Config changes not applied    | `docker compose restart prometheus`                                             |
+| Prometheus high memory usage  | Reduce retention in `prometheus.yml` or increase `scrape_interval`              |
 
 ## References
 
