@@ -22,7 +22,7 @@ func LoadConfig() {
 
 	Port = os.Getenv("PORT")
 	if Port == "" {
-		Port = "2500"
+		Port = "8081"
 	}
 	DatabaseURL = os.Getenv("DATABASE_URL")
 	KafkaBrokers = os.Getenv("KAFKA_BROKERS")
