@@ -41,10 +41,9 @@ def sign_payload(private_key_path, mode, v_rms, temp_c, peak_hz1, peak_hz2, peak
     data_hash = hashlib.sha256(data_bytes).digest()
     signature_bytes = sk.sign_digest_deterministic(data_hash, hashfunc=hashlib.sha256, sigencode=util.sigencode_der)
     
-    # Build envelope with timestamp and nonce
+    # Build envelope with nonce (timestamp will be added by server)
     nonce = f"n-{int(time.time() * 1000)}"
     envelope = {
-        "timestamp": int(time.time()),
         "nonce": nonce,
         "data": data,
         "signature": base64.b64encode(signature_bytes).decode('utf-8')

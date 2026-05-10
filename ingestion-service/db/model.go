@@ -46,7 +46,7 @@ type SensorDeviceData struct {
 }
 
 type MQTTPayload struct {
-	Timestamp int64           `json:"timestamp"`
+	Timestamp *int64          `json:"timestamp,omitempty"` // Optional - will be set by server if missing
 	Nonce     string          `json:"nonce"`
 	Data      json.RawMessage `json:"data"`
 	Signature string          `json:"signature"`

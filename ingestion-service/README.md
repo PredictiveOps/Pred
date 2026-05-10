@@ -79,7 +79,6 @@ Devices send signed telemetry via MQTT to `devices/{deviceID}/data`. The payload
 
 ```json
 {
-	"timestamp": 1704067200,
 	"nonce": "n-1",
 	"data": {
 		"mode": "normal",
@@ -93,6 +92,8 @@ Devices send signed telemetry via MQTT to `devices/{deviceID}/data`. The payload
 	"signature": "BASE64_ENCODED_ECDSA_SIGNATURE"
 }
 ```
+
+**Note:** The `timestamp` field is optional. If not provided by the device, the ingestion service will automatically add a server-generated timestamp when the message is received.
 
 **Important: JSON Field Order**
 
@@ -123,11 +124,11 @@ data = {
 data_bytes = json.dumps(data, separators=(',', ':')).encode('utf-8')  # no spaces
 signature = sign(sha256(data_bytes), private_key)
 envelope = {
-	"timestamp": int(time.time()),
 	"nonce": "unique-id-per-message",
 	"data": data,
 	"signature": base64.encode(signature)
 }
+# Note: timestamp is optional - server will add it if omitted
 mqtt.publish(f"devices/{device_id}/data", json.dumps(envelope))
 ```
 
