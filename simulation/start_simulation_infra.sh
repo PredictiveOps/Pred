@@ -53,7 +53,7 @@ echo ""
 echo "[3/8] Creating Kafka topics..."
 docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
     --create --bootstrap-server localhost:9092 \
-    --topic sensor_data --partitions 1 --replication-factor 1 2>/dev/null || echo "      Topic sensor_data already exists or will be created"
+    --topic device-events --partitions 1 --replication-factor 1 2>/dev/null || echo "      Topic device-events already exists or will be created"
 docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
     --create --bootstrap-server localhost:9092 \
     --topic processed-data --partitions 1 --replication-factor 1 2>/dev/null || echo "      Topic processed-data already exists or will be created"
@@ -128,4 +128,4 @@ echo "Run simulation:"
 echo "  cd simulation && ./run_simulation.sh 1 new 100"
 echo ""
 echo "Watch Kafka data:"
-echo "  docker compose exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic sensor_data --from-beginning"
+echo "  docker compose exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic device-events --from-beginning"

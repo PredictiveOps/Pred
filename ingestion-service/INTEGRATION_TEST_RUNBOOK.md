@@ -300,7 +300,7 @@ docker compose logs -f ingestion-service | grep -i "verify\|signature\|kafka"
 **Expected output:**
 ```
 [INFO] verified signed payload for device_id=1 payload_bytes=17
-[INFO] Published to Kafka topic=sensor_data key=1 partition=0
+[INFO] Published to Kafka topic=device-events key=1 partition=0
 ```
 
 ---
@@ -310,10 +310,10 @@ docker compose logs -f ingestion-service | grep -i "verify\|signature\|kafka"
 ### 5.1: Consume From Kafka Topic
 
 ```bash
-# Consume the sensor_data topic
+# Consume the device-events topic
 docker compose exec kafka kafka-console-consumer \
   --bootstrap-server localhost:9092 \
-  --topic sensor_data \
+  --topic device-events \
   --from-beginning \
   --max-messages 1
 ```
@@ -329,7 +329,7 @@ docker compose exec kafka kafka-console-consumer \
 # Consume and parse with jq for clarity
 docker compose exec kafka kafka-console-consumer \
   --bootstrap-server localhost:9092 \
-  --topic sensor_data \
+  --topic device-events \
   --from-beginning \
   --max-messages 1 | jq .
 

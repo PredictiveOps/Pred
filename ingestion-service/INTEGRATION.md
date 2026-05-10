@@ -104,14 +104,14 @@ docker compose exec mosquitto mosquitto_pub \
 ```sh
 docker compose exec kafka kafka-console-consumer \
   --bootstrap-server localhost:9092 \
-  --topic sensor_data \
+  --topic device-events \
   --from-beginning \
   --max-messages 1
 ```
 
 ## Integration Notes
 
-- **Kafka Topic**: `sensor_data` (not `events`)
+- **Kafka Topic**: `device-events` (not `events`)
 - **Message Flow**: Device → MQTT (signed) → Verification → Kafka
 - **No HTTP Ingestion**: Service only accepts telemetry via MQTT
 - **Signature Verification**: All telemetry must be cryptographically signed
@@ -129,7 +129,7 @@ Before deploying to production:
 3. Configure the CA certificate path via `MQTT_CA_CERT` environment variable
 
 ## Troubleshooting
-- If messages are not appearing on `sensor_data`, check:
+- If messages are not appearing on `device-events`, check:
   - Device is registered and has a valid public key
   - MQTT TLS certificates are configured correctly
   - Signature verification is working (check device private/public key pair)

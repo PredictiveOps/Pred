@@ -30,7 +30,7 @@ COPY src/prediction_api.py src/prediction_module.py src/kafka_producer.py \
      src/db_models.py src/prediction_service.py src/review_service.py \
      src/retraining_service.py src/model_version_service.py \
      src/timeseries_repository.py src/alert_notifier.py src/prediction_persister.py ./
-COPY artifacts/ ./artifacts/
+COPY artifacts/ /artifacts/
 COPY alert-notifier-entrypoint.sh prediction-persister-entrypoint.sh /
 
 EXPOSE 8003

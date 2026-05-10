@@ -126,7 +126,7 @@ docker compose exec mosquitto mosquitto_pub \
 ```bash
 docker compose exec kafka kafka-console-consumer \
   --bootstrap-server localhost:9092 \
-  --topic sensor_data \
+  --topic device-events \
   --from-beginning \
   --max-messages 1
 ```

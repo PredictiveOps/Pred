@@ -138,7 +138,7 @@ docker compose exec mosquitto mosquitto_pub \
 ```
 
 ## Integrations (downstream)
-- `event-processing-service` consumes `sensor_data` topic — coordinate the `KAFKA_TOPIC` name and partitioning key.
+- `event-processing-service` consumes `device-events` topic — coordinate the `KAFKA_TOPIC` name and partitioning key.
 - Alerting/notification flows depend on downstream processors; ingestion should not emit alerts directly.
 
 ---

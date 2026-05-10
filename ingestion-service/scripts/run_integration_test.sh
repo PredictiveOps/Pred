@@ -109,7 +109,7 @@ sleep 2
 
 echo ""
 echo "Step 8: Verify message in Kafka..."
-KAFKA_MESSAGE=$(docker compose exec kafka bash -c "/opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic sensor_data --from-beginning --max-messages 50 --timeout-ms 8000" 2>/dev/null | grep -E '\"device_id\":\s*'$DEVICE_ID | head -1 || echo "")
+KAFKA_MESSAGE=$(docker compose exec kafka bash -c "/opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic device-events --from-beginning --max-messages 50 --timeout-ms 8000" 2>/dev/null | grep -E '\"device_id\":\s*'$DEVICE_ID | head -1 || echo "")
 
 echo "$KAFKA_MESSAGE" | jq . > /dev/null 2>&1
 test_result "Consume message from Kafka" $?
@@ -141,7 +141,7 @@ sleep 1
 sleep 1
 KAFKA_MESSAGES=$(docker compose exec kafka kafka-console-consumer \
   --bootstrap-server localhost:9092 \
-  --topic sensor_data \
+  --topic device-events \
   --from-beginning \
   --timeout-ms 1000 2>/dev/null | wc -l)
 if [ "$KAFKA_MESSAGES" -le 1 ]; then
