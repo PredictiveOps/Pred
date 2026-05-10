@@ -2,13 +2,14 @@
 """Simulates 3 edge devices sending signed MQTT telemetry to the ingestion service.
 
 Each device:
-  1. HTTP-registers itself with the ingestion service (idempotent).
+  1. Inserts itself into the ingestion Postgres database (idempotent).
   2. Connects to the MQTT broker and publishes its ECDSA P-256 public key.
   3. Waits for the registration-response confirming the key was accepted.
   4. Continuously publishes signed sensor-telemetry at random intervals.
 
-Environment variables (all optional – defaults match docker-compose dev config):
-  INGESTION_HTTP_URL   http://ingestion-service:8003
+Environment variables (all optional – defaults match docker-compose simulation config):
+  INGESTION_HTTP_URL   http://ingestion-service:8003  (used for healthcheck only)
+  INGESTION_DB_URL     postgresql://postgres:postgres@postgres-sim:5432/ingestion_sim
   MQTT_BROKER_HOST     mosquitto
   MQTT_BROKER_PORT     1883
   MQTT_DEVICE_USERNAME pred-device
@@ -31,6 +32,7 @@ import time
 import uuid
 
 import paho.mqtt.client as mqtt
+import psycopg
 import requests
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -42,20 +44,49 @@ logging.basicConfig(
 )
 
 INGESTION_HTTP_URL = os.getenv("INGESTION_HTTP_URL", "http://ingestion-service:8003")
+INGESTION_DB_URL = os.getenv("INGESTION_DB_URL", "postgresql://postgres:postgres@postgres-sim:5432/ingestion_sim")
 MQTT_BROKER_HOST = os.getenv("MQTT_BROKER_HOST", "mosquitto")
 MQTT_BROKER_PORT = int(os.getenv("MQTT_BROKER_PORT", "1883"))
 MQTT_USERNAME = os.getenv("MQTT_DEVICE_USERNAME", "pred-device")
 MQTT_PASSWORD = os.getenv("MQTT_DEVICE_PASSWORD", "dev-device-password")
-TENANT_ID = int(os.getenv("TENANT_ID", "1"))
+TENANT_ID = int(os.getenv("TENANT_ID", "tenant-001"))
 SEND_INTERVAL_MIN = float(os.getenv("SEND_INTERVAL_MIN", "5"))
 SEND_INTERVAL_MAX = float(os.getenv("SEND_INTERVAL_MAX", "30"))
 MQTT_CA_CERT = os.getenv("MQTT_CA_CERT", "")
+
+# Stable ECDSA P-256 private keys — one per simulated device.
+# These are hardcoded so device identities (and public keys stored in the DB)
+# remain consistent across simulator restarts.
+_DEVICE_PRIVATE_KEY_PEMS = [
+    """\
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgirt9yBcAFam5efFk
+yqBFH06WmcgPkhwCR5mWoLDCYJShRANCAARvMTGcZ2PzdUZrGmDWqEdbuYtl9JVx
+RDXwLS0UC89ZLjWaV3SsoQ0otrZ9cOJPHoJvxss2Zt36CHGZWZG5r58o
+-----END PRIVATE KEY-----
+""",
+    """\
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgzS7l/1X7x4uee7BI
+uhKeBSJvbuSYlO1SMuaxSc8fBSGhRANCAAQ9fGuXExFbeWrHcIIencm1W8Rek71Q
+clkX8cHl70oYWxKTbLGVr94dk9HYn30RtpR9PukTvUoiVqAPkuqXaHDD
+-----END PRIVATE KEY-----
+""",
+    """\
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgf9mzTByo/mBjFRkg
+OK6VbHb0JFPBgfhPm+Gtt5cKut2hRANCAATmzcoQtAwfH+mae4yHa0PCXFFGQkaZ
+vIE0Wl9zldom/Q8EySRPdui9hguawQnCVjavkMG9kvJNLSqy7Jffaxx/
+-----END PRIVATE KEY-----
+""",
+]
 
 # Three device profiles with distinct sensor characteristics.
 # Device 2 runs hot with vibration to exercise warning/error paths.
 DEVICE_PROFILES = [
     {
         "device_id": 1,
+        "private_key_pem": _DEVICE_PRIVATE_KEY_PEMS[0],
         "temp_baseline": 65.0,
         "temp_stddev": 2.0,
         "peak_hz": (45, 90, 135),
@@ -65,6 +96,7 @@ DEVICE_PROFILES = [
     },
     {
         "device_id": 2,
+        "private_key_pem": _DEVICE_PRIVATE_KEY_PEMS[1],
         "temp_baseline": 78.0,
         "temp_stddev": 4.0,
         "peak_hz": (52, 104, 156),
@@ -74,6 +106,7 @@ DEVICE_PROFILES = [
     },
     {
         "device_id": 3,
+        "private_key_pem": _DEVICE_PRIVATE_KEY_PEMS[2],
         "temp_baseline": 55.0,
         "temp_stddev": 1.5,
         "peak_hz": (60, 120, 180),
@@ -92,7 +125,9 @@ class DeviceSimulator:
         self.profile = profile
         self.log = logging.getLogger(str(self.device_id))
 
-        self._private_key = ec.generate_private_key(ec.SECP256R1())
+        self._private_key = serialization.load_pem_private_key(
+            profile["private_key_pem"].encode(), password=None
+        )
         self._public_key_pem: str = (
             self._private_key.public_key()
             .public_bytes(
@@ -198,8 +233,6 @@ class DeviceSimulator:
         for attempt in range(1, retries + 1):
             try:
                 r = requests.get(url, timeout=3)
-                self.log.info("Ingestion service health check response: %s", r.status_code)
-                self.log.info("Ingestion service health check response text: %s", r.text)
                 if r.status_code < 500:
                     return
             except requests.RequestException:
@@ -208,25 +241,27 @@ class DeviceSimulator:
             time.sleep(delay)
         raise RuntimeError("Ingestion service did not become ready")
 
-    def _http_register(self) -> None:
-        url = f"{INGESTION_HTTP_URL}/devices/register"
-        try:
-            r = requests.post(
-                url,
-                json={"device_id": self.device_id, "tenant_id": TENANT_ID},
-                timeout=10,
-            )
-            if r.status_code == 201:
-                self.log.info("Device registered via HTTP")
-            else:
-                # 5xx usually means the device record already exists; that is fine.
-                self.log.warning("HTTP register returned %d (may already exist)", r.status_code)
-        except requests.RequestException as exc:
-            raise RuntimeError(f"HTTP registration failed: {exc}") from exc
+    def _db_register(self) -> None:
+        """Insert this device's (device_id, tenant_id) row directly into Postgres.
+
+        Uses ON CONFLICT DO NOTHING so it is safe to call on every restart.
+        """
+        with psycopg.connect(INGESTION_DB_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO devices (device_id, tenant_id, is_active, created_at, updated_at)
+                    VALUES (%s, %s, false, NOW(), NOW())
+                    ON CONFLICT (device_id) DO NOTHING
+                    """,
+                    (self.device_id, str(TENANT_ID)),
+                )
+            conn.commit()
+        self.log.info("Device row inserted/exists in DB (device_id=%d)", self.device_id)
 
     def run(self) -> None:
         self._wait_for_ingestion()
-        self._http_register()
+        self._db_register()
 
         self._client = mqtt.Client(client_id=str(self.device_id), clean_session=True)
         self._client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
@@ -263,7 +298,7 @@ def main() -> None:
     ]
     for t in threads:
         t.start()
-        time.sleep(1)  # stagger startup to avoid simultaneous HTTP registration
+        time.sleep(1)  # stagger startup to avoid simultaneous DB inserts
 
     try:
         while True:

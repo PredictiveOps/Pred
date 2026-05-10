@@ -306,14 +306,17 @@ services:
       MQTT_DEVICE_USERNAME: ${MQTT_DEVICE_USERNAME:-pred-device}
       MQTT_DEVICE_PASSWORD: ${MQTT_DEVICE_PASSWORD:-dev-device-password}
       MQTT_CA_CERT: /mosquitto/certs/ca.crt
-      TENANT_ID: "1"
+      TENANT_ID: "tenant-001"
       SEND_INTERVAL_MIN: "5"
       SEND_INTERVAL_MAX: "30"
       NO_PROXY: ${NO_PROXY:-},ingestion-service,mosquitto
+      INGESTION_DB_URL: postgresql://postgres:postgres@postgres-sim:5432/ingestion_sim
     volumes:
       - ./mosquitto/certs:/mosquitto/certs:ro
     depends_on:
       ingestion-service:
+        condition: service_healthy
+      postgres-sim:
         condition: service_healthy
     restart: unless-stopped
 
