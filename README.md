@@ -103,6 +103,43 @@ When calling services directly (bypassing Kong, e.g. in local development), supp
 curl -H 'X-Tenant-Id: <tenant_id>' ...
 ```
 
+## Ports
+
+### Local development (`docker compose up`)
+
+| Service                  | Host port(s)       | Container port(s) | Notes                        |
+| ------------------------ | ------------------ | ----------------- | ---------------------------- |
+| postgres                 | 5433               | 5432              |                              |
+| kafka                    | 9092               | 9092              | 9093 used internally (KRaft) |
+| redis                    | 6379               | 6379              |                              |
+| mosquitto                | 8883               | 8883              | MQTTS                        |
+| prometheus               | 9090               | 9090              |                              |
+| keycloak                 | 8080               | 8080              |                              |
+| ingestion-service        | 8081               | 8081              |                              |
+| ml-service               | 8003               | 8003              |                              |
+| kong (proxy)             | 8000               | 8000              |                              |
+| kong (admin API)         | 8002               | 8001              |                              |
+| web-frontend             | 3000               | 3000              |                              |
+| event-processing-service | *(not exposed)*    | 8080              |                              |
+| notifications-service    | *(not exposed)*    | 8080              |                              |
+
+### Cluster (Kubernetes)
+
+| Service                  | Port(s)            |
+| ------------------------ | ------------------ |
+| event-processing-service | 8080               |
+| ingestion-service        | 8081               |
+| kafka                    | 9092, 9093         |
+| keycloak                 | 8080               |
+| kong (proxy)             | 8000               |
+| kong (admin API)         | 8001               |
+| ml-service               | 8003               |
+| mosquitto                | 8883               |
+| notifications-service    | 8080               |
+| postgres                 | 5432               |
+| redis                    | 6379               |
+| web-frontend             | 3000               |
+
 ## Services
 
 All services must have a `.env.example` file with the required and optional environment variables with their default values.
