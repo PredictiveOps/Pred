@@ -1,8 +1,17 @@
+x-no-proxy: &no-proxy
+  HTTP_PROXY: ""
+  HTTPS_PROXY: ""
+  http_proxy: ""
+  https_proxy: ""
+  ALL_PROXY: ""
+  all_proxy: ""
+
 services:
   postgres-test:
     image: postgres:18
     container_name: pred-test-postgres
     environment:
+      <<: *no-proxy
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
@@ -21,6 +30,7 @@ services:
     image: apache/kafka:4.2.0
     container_name: pred-test-kafka
     environment:
+      <<: *no-proxy
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093

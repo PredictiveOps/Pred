@@ -81,45 +81,11 @@ match the ingestion credentials.
 
 ## Generate dev certificates (for local testing)
 
-Run these from the repo root; they create a CA (used only to sign the server cert) and a server certificate under `./mosquitto/certs`.
+Run from the repo root; creates a CA and server certificate under `./mosquitto/certs`.
 
 ```sh
-# create cert dir and cd into it
-mkdir -p ./mosquitto/certs && cd ./mosquitto/certs
-
-# Create a local CA (you can archive/remove ca.key after signing)
-openssl genpkey -algorithm RSA -out ca.key -pkeyopt rsa_keygen_bits:4096
-openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 -out ca.crt -subj "/CN=Pred Local CA"
-
-# Create server key and CSR
-openssl genpkey -algorithm RSA -out server.key -pkeyopt rsa_keygen_bits:2048
-openssl req -new -key server.key -out server.csr -subj "/CN=localhost"
-
-# Create SAN extfile and sign the server CSR with the CA
-cat > server.ext <<'EOF'
-[req]
-distinguished_name = req_distinguished_name
-req_extensions = req_ext
-prompt = no
-
-[req_distinguished_name]
-CN = localhost
-
-[req_ext]
-subjectAltName = @alt_names
-
-[alt_names]
-DNS.1 = localhost
-IP.1 = 127.0.0.1
-EOF
-
-openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
-  -out server.crt -days 825 -sha256 -extfile server.ext
-
-chmod 600 server.key
-chmod 644 server.crt ca.crt
+make create-mosquitto-certificates
 ```
-
 
 Subscribe as the ingestion service:
 

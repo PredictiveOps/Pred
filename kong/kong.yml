@@ -22,7 +22,7 @@ upstreams:
 
   - name: ingestion-upstream
     targets:
-      - target: ingestion-service:8081
+      - target: ingestion-service:8003
         weight: 100
     healthchecks:
       active:
