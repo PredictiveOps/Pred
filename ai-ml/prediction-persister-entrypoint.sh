@@ -24,7 +24,7 @@ except Exception:
     sleep 2
 done
 
-echo "[Prediction Persister] Waiting for Kafka at kafka:29092..."
+echo "[Prediction Persister] Waiting for Kafka at kafka:9092..."
 
 # Wait for Kafka to be ready
 for i in {1..30}; do
@@ -34,7 +34,7 @@ import sys
 try:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(2)
-    result = sock.connect_ex(('kafka', 29092))
+    result = sock.connect_ex(('kafka', 9092))
     sock.close()
     sys.exit(0 if result == 0 else 1)
 except Exception:

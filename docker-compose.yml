@@ -49,9 +49,11 @@ services:
       - "8085:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
     depends_on:
       - kafka
+    networks:
+      - pred-network
 
   redis:
     image: redis:7-alpine
@@ -115,33 +117,35 @@ services:
 
     ports:
       - "${INGESTION_PORT:-8081}:8081"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      # mosquitto:
-      #   condition: service_healthy
-    volumes:
-      - ./mosquitto/certs:/mosquitto/certs:ro
-    networks:
-      - pred-network
-    restart: on-failure
-    ports:
       - "2500:8003"
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_started
-      mosquitto:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    volumes:
+      - ./mosquitto/certs:/mosquitto/certs:ro
+    networks:
+      - pred-network
     restart: unless-stopped
-
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8081/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.1
@@ -339,40 +343,11 @@ services:
       - pred-network
     restart: on-failure
 
-  ml-service:
-    build:
-      context: ./ai-ml
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/predictions
-      - API_HOST=0.0.0.0
-      - API_PORT=8000
-      - MODEL_DIR=/app/artifacts/models
-      - LOG_LEVEL=INFO
-      - KAFKA_BROKERS=kafka:29092
-      - KAFKA_PREDICTIONS_TOPIC=predictions
-      - KAFKA_ENABLED=true
-    ports:
-      - "8004:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_started
-    volumes:
-      - ml_models:/app/artifacts/models
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\""]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
   alert-notifier:
     build:
       context: ./ai-ml
     environment:
-      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_BROKERS=kafka:9092
       - KAFKA_PREDICTIONS_TOPIC=predictions
       - KAFKA_ALERTS_TOPIC=alerts
       - KAFKA_CONSUMER_GROUP=alert-notifier
@@ -380,17 +355,25 @@ services:
       - LOG_LEVEL=INFO
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     entrypoint: ["/bin/bash", "/alert-notifier-entrypoint.sh"]
-    working_dir: /app/src
+    working_dir: /app
+    networks:
+      - pred-network
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep 'alert_notifier' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   prediction-persister:
     build:
       context: ./ai-ml
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/predictions
-      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_BROKERS=kafka:9092
       - KAFKA_PREDICTIONS_TOPIC=predictions
       - KAFKA_CONSUMER_GROUP=prediction-persister
       - KAFKA_ENABLED=true
@@ -399,10 +382,18 @@ services:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     entrypoint: ["/bin/bash", "/prediction-persister-entrypoint.sh"]
-    working_dir: /app/src
+    working_dir: /app
+    networks:
+      - pred-network
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep 'prediction_persister' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
 volumes:
   postgres_data:

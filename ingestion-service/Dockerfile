@@ -8,6 +8,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ingestion-service .
 
 # --------- Stage 2: Runtime ---------
 FROM alpine:3.23
+RUN apk add --no-cache wget
 WORKDIR /app
 COPY --from=builder /app/ingestion-service .
 EXPOSE 8081

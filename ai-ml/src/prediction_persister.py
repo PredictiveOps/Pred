@@ -13,6 +13,7 @@ import logging
 import os
 import signal
 import sys
+import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -181,22 +182,40 @@ def process_message(message_value: dict[str, Any]) -> bool:
 def run_persister() -> None:
     """
     Run the prediction persistence service.
-    
+
     Continuously consumes predictions and stores them to the database.
     """
     if not KAFKA_ENABLED:
         logger.warning("Kafka is disabled, persister will not run")
         return
 
-    consumer = get_consumer()
-    if consumer is None:
-        logger.error("Failed to initialize consumer, exiting")
-        return
+    # Retry initialization with backoff
+    consumer = None
+    db = None
+    max_retries = 30
+    retry_delay = 2
 
-    db = get_db()
+    for attempt in range(max_retries):
+        consumer = get_consumer()
+        if consumer is not None:
+            break
+        logger.warning(f"Failed to initialize consumer, retrying ({attempt + 1}/{max_retries})...")
+        time.sleep(retry_delay)
+
+    if consumer is None:
+        logger.error("Failed to initialize consumer after max retries, exiting")
+        sys.exit(1)
+
+    for attempt in range(max_retries):
+        db = get_db()
+        if db is not None:
+            break
+        logger.warning(f"Failed to initialize database, retrying ({attempt + 1}/{max_retries})...")
+        time.sleep(retry_delay)
+
     if db is None:
-        logger.error("Failed to initialize database, exiting")
-        return
+        logger.error("Failed to initialize database after max retries, exiting")
+        sys.exit(1)
 
     logger.info(
         f"Starting prediction persister, consuming from '{KAFKA_PREDICTIONS_TOPIC}', "
@@ -226,6 +245,7 @@ def run_persister() -> None:
                 continue
     except Exception as e:
         logger.error(f"Consumer error: {e}")
+        raise  # Re-raise to trigger restart
     finally:
         close()
 
@@ -260,6 +280,14 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    
+
     logger.info("Prediction Persistence Service starting...")
-    run_persister()
+
+    # Keep restarting on failure to maintain steady state
+    while True:
+        try:
+            run_persister()
+            logger.info("Prediction persister exited gracefully, restarting in 5s...")
+        except Exception as e:
+            logger.error(f"Prediction persister crashed: {e}, restarting in 5s...")
+        time.sleep(5)

@@ -13,6 +13,7 @@ import logging
 import os
 import signal
 import sys
+import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -224,22 +225,40 @@ def process_prediction(prediction: dict[str, Any]) -> bool:
 def run_notifier() -> None:
     """
     Run the alert notifier service.
-    
+
     Continuously consumes predictions and routes alerts for non-normal statuses.
     """
     if not KAFKA_ENABLED:
         logger.warning("Kafka is disabled, notifier will not run")
         return
 
-    consumer = get_consumer()
-    if consumer is None:
-        logger.error("Failed to initialize consumer, exiting")
-        return
+    # Retry initialization with backoff
+    consumer = None
+    producer = None
+    max_retries = 30
+    retry_delay = 2
 
-    producer = get_producer()
+    for attempt in range(max_retries):
+        consumer = get_consumer()
+        if consumer is not None:
+            break
+        logger.warning(f"Failed to initialize consumer, retrying ({attempt + 1}/{max_retries})...")
+        time.sleep(retry_delay)
+
+    if consumer is None:
+        logger.error("Failed to initialize consumer after max retries, exiting")
+        sys.exit(1)
+
+    for attempt in range(max_retries):
+        producer = get_producer()
+        if producer is not None:
+            break
+        logger.warning(f"Failed to initialize producer, retrying ({attempt + 1}/{max_retries})...")
+        time.sleep(retry_delay)
+
     if producer is None:
-        logger.error("Failed to initialize producer, exiting")
-        return
+        logger.error("Failed to initialize producer after max retries, exiting")
+        sys.exit(1)
 
     logger.info(f"Starting alert notifier, consuming from '{KAFKA_PREDICTIONS_TOPIC}', publishing to '{KAFKA_ALERTS_TOPIC}'")
 
@@ -266,6 +285,7 @@ def run_notifier() -> None:
                 continue
     except Exception as e:
         logger.error(f"Consumer error: {e}")
+        raise  # Re-raise to trigger restart
     finally:
         close()
 
@@ -301,6 +321,14 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    
+
     logger.info("Alert Notifier Service starting...")
-    run_notifier()
+
+    # Keep restarting on failure to maintain steady state
+    while True:
+        try:
+            run_notifier()
+            logger.info("Alert notifier exited gracefully, restarting in 5s...")
+        except Exception as e:
+            logger.error(f"Alert notifier crashed: {e}, restarting in 5s...")
+        time.sleep(5)
