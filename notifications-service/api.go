@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -98,8 +99,12 @@ func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 	mux.HandleFunc("/notifications", notificationsHandler(gdb))
 	mux.HandleFunc("/ws", wsHandler(hub))
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8083"
+	}
 	server := &http.Server{
-		Addr:              ":8080",
+		Addr:              ":" + port,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
