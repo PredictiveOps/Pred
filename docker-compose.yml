@@ -258,7 +258,7 @@ services:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
     networks:
       - pred-network
     restart: on-failure

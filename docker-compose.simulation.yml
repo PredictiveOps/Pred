@@ -148,6 +148,10 @@ services:
       kafka:
         condition: service_healthy
     restart: unless-stopped
+    develop:
+      watch:
+        - action: rebuild
+          path: ./event-processing-service
 
   ml-service:
     build:
