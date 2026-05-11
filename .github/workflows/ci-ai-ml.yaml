@@ -101,14 +101,19 @@ jobs:
             sleep 2
           done
 
+      # - name: Run Python tests
+      #   working-directory: ai-ml
+      #   run: |
+      #     if [ -f test_ml_services.py ] || [ -f test_prediction.py ]; then
+      #       python -m pytest . -v --tb=short
+      #     else
+      #       echo "No test files found, skipping tests"
+      #     fi
+
       - name: Run Python tests
         working-directory: ai-ml
         run: |
-          if [ -f test_ml_services.py ] || [ -f test_prediction.py ]; then
-            python -m pytest . -v --tb=short
-          else
-            echo "No test files found, skipping tests"
-          fi
+          python -m pytest test_ml_services.py -v --tb=short
 
       - name: Notify if tests fail
         if: failure()
