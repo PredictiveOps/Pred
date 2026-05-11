@@ -45,6 +45,21 @@ services:
       retries: 10
       start_period: 30s
 
+  kafka-init:
+    image: apache/kafka:4.2.0
+    environment:
+      <<: *no-proxy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic sensor_data --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic ml-features --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic notifications --partitions 1 --replication-factor 1
+    depends_on:
+      kafka:
+        condition: service_healthy
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     ports:
@@ -147,6 +162,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     develop:
       watch:
@@ -167,6 +184,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   notifications-service:
@@ -184,6 +203,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   keycloak:
