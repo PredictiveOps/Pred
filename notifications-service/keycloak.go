@@ -23,6 +23,11 @@ type KeycloakClient struct {
 	tokenExpiry time.Time
 }
 
+type Recipient struct {
+	UserID string `json:"user_id"`
+	Email  string `json:"email"` // required for type="email"
+}
+
 type kcUser struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`

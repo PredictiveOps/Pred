@@ -20,19 +20,16 @@ import (
 	"notifications-service/db"
 )
 
-// AlertEvent is the message schema consumed from Kafka.
-// For push, Recipients carry user_ids resolved to device tokens via the device_tokens table.
-// For email, Recipients carry user_ids and the email address to deliver to.
-type AlertEvent struct {
-	TenantID   string          `json:"tenant_id"`
-	Type       string          `json:"type"` // "email" or "push"
-	Payload    json.RawMessage `json:"payload"`
-	Recipients []Recipient     `json:"recipients"`
+// KeycloakRecipientProvider interface for getting recipients from Keycloak
+type KeycloakRecipientProvider interface {
+	GetTenantRecipients(ctx context.Context, tenantID string) ([]Recipient, error)
 }
 
-type Recipient struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"` // required for type="email"
+// AlertEvent is the message schema consumed from Kafka.
+type AlertEvent struct {
+	TenantID string          `json:"tenant_id"`
+	Type     string          `json:"type"` // "email" or "push"
+	Payload  json.RawMessage `json:"payload"`
 }
 
 func main() {
@@ -95,7 +92,7 @@ func main() {
 	}
 }
 
-func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, kc *KeycloakClient, msg kafka.Message) error {
+func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, kc KeycloakRecipientProvider, msg kafka.Message) error {
 	var event AlertEvent
 	cleanValue := normalizeKafkaMessage(msg.Value)
 	if err := json.Unmarshal(cleanValue, &event); err != nil {
@@ -118,10 +115,8 @@ func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, kc *KeycloakClie
 		return fmt.Errorf("fetch keycloak recipients: %w", err)
 	}
 	if len(recipients) == 0 {
-		log.Printf("no users found in keycloak for tenant %s, skipping", event.TenantID)
-		return nil
+		return fmt.Errorf("no users found in keycloak for tenant %s", event.TenantID)
 	}
-	event.Recipients = recipients
 
 	var payloadMap map[string]interface{}
 	if len(event.Payload) > 0 {
@@ -154,17 +149,17 @@ func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, kc *KeycloakClie
 
 	switch event.Type {
 	case "push":
-		return fanOutPush(ctx, gdb, notifID, event)
+		return fanOutPush(ctx, gdb, notifID, event, recipients)
 	case "email":
-		return fanOutEmail(ctx, gdb, notifID, event)
+		return fanOutEmail(ctx, gdb, notifID, event, recipients)
 	}
 
 	return nil
 }
 
-func fanOutPush(ctx context.Context, gdb *gorm.DB, notifID int64, event AlertEvent) error {
-	userIDs := make([]string, len(event.Recipients))
-	for i, r := range event.Recipients {
+func fanOutPush(ctx context.Context, gdb *gorm.DB, notifID int64, event AlertEvent, recipients []Recipient) error {
+	userIDs := make([]string, len(recipients))
+	for i, r := range recipients {
 		userIDs[i] = r.UserID
 	}
 
@@ -193,8 +188,8 @@ func fanOutPush(ctx context.Context, gdb *gorm.DB, notifID int64, event AlertEve
 	return nil
 }
 
-func fanOutEmail(ctx context.Context, gdb *gorm.DB, notifID int64, event AlertEvent) error {
-	for _, r := range event.Recipients {
+func fanOutEmail(ctx context.Context, gdb *gorm.DB, notifID int64, event AlertEvent, recipients []Recipient) error {
+	for _, r := range recipients {
 		if r.Email == "" {
 			log.Printf("skipping recipient with empty email (user %s)", r.UserID)
 			continue
