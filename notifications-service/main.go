@@ -49,6 +49,12 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	kcURL := getEnv("KEYCLOAK_URL", "http://localhost:8080")
+	kcRealm := getEnv("KEYCLOAK_REALM", "pred")
+	kcClientID := getEnv("KEYCLOAK_CLIENT_ID", "notifications-service")
+	kcClientSecret := getEnv("KEYCLOAK_CLIENT_SECRET", "dev-notifications-service-secret")
+	kc := NewKeycloakClient(kcURL, kcRealm, kcClientID, kcClientSecret)
+
 	gdb, err := db.Open(ctx, dbURL)
 	if err != nil {
 		log.Fatalf("database init failed: %v", err)
@@ -83,13 +89,13 @@ func main() {
 			continue
 		}
 
-		if err := handleMessage(ctx, gdb, hub, msg); err != nil {
+		if err := handleMessage(ctx, gdb, hub, kc, msg); err != nil {
 			log.Printf("handle error (offset %d): %v", msg.Offset, err)
 		}
 	}
 }
 
-func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, msg kafka.Message) error {
+func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, kc *KeycloakClient, msg kafka.Message) error {
 	var event AlertEvent
 	cleanValue := normalizeKafkaMessage(msg.Value)
 	if err := json.Unmarshal(cleanValue, &event); err != nil {
@@ -99,12 +105,23 @@ func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, msg kafka.Messag
 	if event.TenantID == "" {
 		return fmt.Errorf("missing tenant_id")
 	}
-	if len(event.Recipients) == 0 {
-		return fmt.Errorf("missing recipients")
-	}
 	if event.Type != "push" && event.Type != "email" {
 		return fmt.Errorf("unknown notification type %q", event.Type)
 	}
+
+	if kc == nil {
+		return fmt.Errorf("keycloak client not configured")
+	}
+
+	recipients, err := kc.GetTenantRecipients(ctx, event.TenantID)
+	if err != nil {
+		return fmt.Errorf("fetch keycloak recipients: %w", err)
+	}
+	if len(recipients) == 0 {
+		log.Printf("no users found in keycloak for tenant %s, skipping", event.TenantID)
+		return nil
+	}
+	event.Recipients = recipients
 
 	var payloadMap map[string]interface{}
 	if len(event.Payload) > 0 {

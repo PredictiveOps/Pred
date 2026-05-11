@@ -24,7 +24,7 @@ func TestHandleMessage_Email(t *testing.T) {
 		},
 	}
 
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -75,7 +75,7 @@ func TestHandleMessage_Push(t *testing.T) {
 		},
 	}
 
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -110,7 +110,7 @@ func TestHandleMessage_UnknownType(t *testing.T) {
 		Recipients: []Recipient{{UserID: "u1"}},
 	}
 
-	err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event))
+	err := handleMessage(ctx, gdb, nil, nil, testutil.MakeMessage(t, event))
 	if err == nil {
 		t.Fatal("expected error for unknown notification type, got nil")
 	}
@@ -121,7 +121,7 @@ func TestHandleMessage_InvalidJSON(t *testing.T) {
 	ctx := context.Background()
 
 	msg := testutil.MakeMessage(t, []byte(`not valid json`))
-	err := handleMessage(ctx, gdb, nil, msg)
+	err := handleMessage(ctx, gdb, nil, nil, msg)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
 	}
@@ -136,7 +136,7 @@ func TestHandleMessage_MissingTenantID(t *testing.T) {
 		Payload:    json.RawMessage(`{}`),
 		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
 	}
-	err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event))
+	err := handleMessage(ctx, gdb, nil, nil, testutil.MakeMessage(t, event))
 	if err == nil {
 		t.Fatal("expected error for missing tenant_id, got nil")
 	}
@@ -152,7 +152,7 @@ func TestHandleMessage_EmptyRecipients(t *testing.T) {
 		Payload:    json.RawMessage(`{}`),
 		Recipients: []Recipient{},
 	}
-	err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event))
+	err := handleMessage(ctx, gdb, nil, nil, testutil.MakeMessage(t, event))
 	if err == nil {
 		t.Fatal("expected error for empty recipients, got nil")
 	}
@@ -169,7 +169,7 @@ func TestHandleMessage_LowFailureProbability(t *testing.T) {
 		Payload:    json.RawMessage(`{"failure_probability":0.5}`),
 		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -199,7 +199,7 @@ func TestHandleMessage_HighFailureProbability(t *testing.T) {
 		Payload:    json.RawMessage(`{"failure_probability":0.95}`),
 		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -223,7 +223,7 @@ func TestHandleMessage_EmailSkipsEmptyAddress(t *testing.T) {
 			{UserID: "u2", Email: ""},
 		},
 	}
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -252,7 +252,7 @@ func TestHandleMessage_PushNoDeviceTokens(t *testing.T) {
 		Payload:    json.RawMessage(`{"title":"Alert"}`),
 		Recipients: []Recipient{{UserID: "u-no-token"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -293,7 +293,7 @@ func TestHandleMessage_PushMultipleTokensPerUser(t *testing.T) {
 		Payload:    json.RawMessage(`{"title":"Multi"}`),
 		Recipients: []Recipient{{UserID: "u20"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, nil, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -363,7 +363,7 @@ func TestHandleMessage_BroadcastsToCorrectTenant(t *testing.T) {
 		Payload:    json.RawMessage(`{"subject":"Alert"}`),
 		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
 	}
-	if err := handleMessage(ctx, gdb, hub, testutil.MakeMessage(t, event)); err != nil {
+	if err := handleMessage(ctx, gdb, hub, nil, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -437,7 +437,7 @@ func TestCrossService_AlertEventFlow(t *testing.T) {
 				{UserID: "xs-u2", Email: "u2@example.com"},
 			},
 		}
-		if err := handleMessage(ctx, gdb, hub, testutil.MakeMessage(t, event)); err != nil {
+		if err := handleMessage(ctx, gdb, hub, nil, testutil.MakeMessage(t, event)); err != nil {
 			t.Fatalf("handleMessage: %v", err)
 		}
 
@@ -481,7 +481,7 @@ func TestCrossService_AlertEventFlow(t *testing.T) {
 				{UserID: "xs-u2"},
 			},
 		}
-		if err := handleMessage(ctx, gdb, hub, testutil.MakeMessage(t, event)); err != nil {
+		if err := handleMessage(ctx, gdb, hub, nil, testutil.MakeMessage(t, event)); err != nil {
 			t.Fatalf("handleMessage: %v", err)
 		}
 

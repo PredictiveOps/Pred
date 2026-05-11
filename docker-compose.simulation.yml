@@ -198,6 +198,10 @@ services:
       KAFKA_TOPIC: notifications
       KAFKA_GROUP_ID: notifications-service-sim
       EMAIL_PROVIDER: stub
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: pred
+      KEYCLOAK_CLIENT_ID: notifications-service
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-notifications-service-secret}
     depends_on:
       postgres-sim:
         condition: service_healthy

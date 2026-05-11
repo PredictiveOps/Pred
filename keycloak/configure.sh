@@ -207,6 +207,15 @@ else
   log "could not locate service-account user for notifications-service client '${KC_NOTIFICATIONS_CLIENT_ID}'"
 fi
 
+# Grant the notifications-service service account permission to list realm users
+# so it can resolve tenant_id → recipients at runtime.
+log "assigning view-users role to notifications-service service account"
+"$KCADM" add-roles -r "$KC_REALM" \
+  --uusername "service-account-${KC_NOTIFICATIONS_CLIENT_ID}" \
+  --cclientid realm-management \
+  --rolename view-users 2>/dev/null || \
+  log "view-users role already assigned (or realm-management client unavailable)"
+
 # --- test user ---
 USER_ID=$("$KCADM" get users -r "$KC_REALM" \
   --query "username=${TEST_USERNAME}" --query 'exact=true' \

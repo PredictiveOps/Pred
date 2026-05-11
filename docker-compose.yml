@@ -296,6 +296,10 @@ services:
       PORT: 8083
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/notifications
       KAFKA_BROKERS: kafka:9092
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: pred
+      KEYCLOAK_CLIENT_ID: notifications-service
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-notifications-service-secret}
     ports:
       - "8083:8083"
     depends_on:
