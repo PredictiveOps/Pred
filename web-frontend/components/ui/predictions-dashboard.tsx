@@ -48,15 +48,15 @@ export function PredictionsDashboard() {
 	const getStatusColor = (status: string) => {
 		switch (status) {
 			case "CRITICAL FAILURE":
-				return "bg-red-500/20 text-red-400 border border-red-500/50";
+				return "bg-red-50 text-red-600 border border-red-200";
 			case "DEGRADING":
-				return "bg-orange-500/20 text-orange-400 border border-orange-500/50";
+				return "bg-orange-50 text-orange-600 border border-orange-200";
 			case "OBSERVATION":
-				return "bg-slate-600/20 text-slate-400 border border-slate-600/50";
+				return "bg-gray-100 text-gray-600 border border-gray-200";
 			case "OPERATIONAL":
-				return "bg-blue-500/20 text-blue-400 border border-blue-500/50";
+				return "bg-blue-50 text-blue-600 border border-blue-200";
 			default:
-				return "bg-slate-600/20 text-slate-400";
+				return "bg-gray-100 text-gray-500";
 		}
 	};
 
@@ -66,16 +66,16 @@ export function PredictionsDashboard() {
 			<div className="flex items-start justify-between mb-6">
 				<div>
 					<h1 className="text-3xl font-bold mb-2">Predictions Dashboard</h1>
-					<p className="text-slate-400 text-sm">
+					<p className="text-gray-500 text-sm">
 						Real-time asset telemetry and failure probability modeling.
 					</p>
 				</div>
 				<div className="flex gap-3">
-					<Button className="bg-slate-700 hover:bg-slate-600 px-4 font-semibold uppercase text-sm flex items-center gap-2">
+					<Button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 font-semibold uppercase text-sm flex items-center gap-2">
 						<Filter className="w-4 h-4" />
 						FILTER VIEW
 					</Button>
-					<Button className="bg-blue-600 hover:bg-blue-700 px-4 font-semibold uppercase text-sm flex items-center gap-2">
+					<Button className="bg-blue-600 hover:bg-blue-700 text-white px-4 font-semibold uppercase text-sm flex items-center gap-2">
 						<Download className="w-4 h-4" />
 						EXPORT REPORT
 					</Button>
@@ -86,14 +86,14 @@ export function PredictionsDashboard() {
 			<div className="grid grid-cols-3 gap-6">
 				{/* Anomaly Scores Chart - Takes 2 columns */}
 				<div className="col-span-2">
-					<Card className="bg-slate-800/50 border-slate-700 p-6">
+					<Card className="bg-white border-gray-200 p-6">
 						<div className="flex justify-between items-start mb-6">
 							<div>
-								<h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+								<h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
 									Anomaly Scores: Plant-Wide Trend
 								</h2>
 							</div>
-							<div className="text-xs text-blue-400 font-semibold">
+							<div className="text-xs text-blue-600 font-semibold">
 								INTERVAL: 30D
 							</div>
 						</div>
@@ -106,14 +106,14 @@ export function PredictionsDashboard() {
 							].map((height, idx) => (
 								<div
 									key={idx}
-									className="flex-1 bg-slate-600 rounded hover:bg-blue-600 transition-colors"
+									className="flex-1 bg-gray-200 rounded hover:bg-blue-500 transition-colors"
 									style={{ height: `${height}%` }}
 								></div>
 							))}
 						</div>
 
 						{/* Timeline Labels */}
-						<div className="flex justify-between text-xs text-slate-400 px-2">
+						<div className="flex justify-between text-xs text-gray-500 px-2">
 							<span>OCT 01</span>
 							<span>OCT 10</span>
 							<span>OCT 20</span>
@@ -124,17 +124,19 @@ export function PredictionsDashboard() {
 
 				{/* Failure Matrix */}
 				<div>
-					<Card className="bg-slate-800/50 border-slate-700 p-6 h-full flex flex-col">
-						<h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-6">
+					<Card className="bg-white border-gray-200 p-6 h-full flex flex-col">
+						<h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-6">
 							Failure Matrix
 						</h2>
 
 						{/* Scatter Plot */}
-						<div className="flex-1 bg-slate-900/50 rounded mb-6 relative p-4 flex items-center justify-center">
+						<div className="flex-1 bg-gray-50 rounded mb-6 relative p-4 flex items-center justify-center">
 							<svg
 								className="w-full h-full"
 								viewBox="0 0 200 200"
 								preserveAspectRatio="none"
+								role="img"
+								aria-label="Failure matrix scatter plot"
 							>
 								{/* Grid lines */}
 								<line
@@ -142,18 +144,18 @@ export function PredictionsDashboard() {
 									y1="50%"
 									x2="100%"
 									y2="50%"
-									stroke="#475569"
+									stroke="#d1d5db"
 									strokeWidth="0.5"
-									opacity="0.3"
+									opacity="0.8"
 								/>
 								<line
 									x1="50%"
 									y1="0"
 									x2="50%"
 									y2="100%"
-									stroke="#475569"
+									stroke="#d1d5db"
 									strokeWidth="0.5"
-									opacity="0.3"
+									opacity="0.8"
 								/>
 
 								{/* Data points - Blue and Orange dots */}
@@ -167,10 +169,10 @@ export function PredictionsDashboard() {
 							</svg>
 
 							{/* Axis Labels */}
-							<div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-xs text-slate-400 font-semibold">
+							<div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-xs text-gray-500 font-semibold">
 								TIME TO FAILURE (D)
 							</div>
-							<div className="absolute left-1 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-semibold transform -rotate-90 origin-left">
+							<div className="absolute left-1 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-semibold transform -rotate-90 origin-left">
 								PROBABILITY
 							</div>
 						</div>
@@ -178,14 +180,14 @@ export function PredictionsDashboard() {
 						{/* Legend */}
 						<div className="space-y-2 text-xs">
 							<div className="flex justify-between">
-								<span className="text-slate-400">Critical Cluster:</span>
-								<span className="text-orange-400 font-semibold">
+								<span className="text-gray-500">Critical Cluster:</span>
+								<span className="text-orange-500 font-semibold">
 									4 Assets Found
 								</span>
 							</div>
 							<div className="flex justify-between">
-								<span className="text-slate-400">Stable Assets:</span>
-								<span className="text-blue-400 font-semibold">162 Total</span>
+								<span className="text-gray-500">Stable Assets:</span>
+								<span className="text-blue-600 font-semibold">162 Total</span>
 							</div>
 						</div>
 					</Card>
@@ -193,13 +195,13 @@ export function PredictionsDashboard() {
 			</div>
 
 			{/* High-Risk Assets Table */}
-			<Card className="bg-slate-800/50 border-slate-700 p-6">
+			<Card className="bg-white border-gray-200 p-6">
 				<div className="flex items-center gap-3 mb-6">
-					<AlertTriangle className="w-5 h-5 text-red-400" />
-					<h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+					<AlertTriangle className="w-5 h-5 text-red-500" />
+					<h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
 						Priority 1: High-Risk Assets
 					</h2>
-					<span className="ml-auto text-xs font-semibold text-red-400 bg-red-500/20 px-3 py-1 rounded border border-red-500/50">
+					<span className="ml-auto text-xs font-semibold text-red-600 bg-red-50 px-3 py-1 rounded border border-red-200">
 						4 DETECTED ANOMALIES
 					</span>
 				</div>
@@ -208,23 +210,23 @@ export function PredictionsDashboard() {
 				<div className="overflow-x-auto">
 					<table className="w-full">
 						<thead>
-							<tr className="border-b border-slate-700">
-								<th className="text-xs text-slate-400 font-semibold uppercase text-left py-3 px-4">
+							<tr className="border-b border-gray-200">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 									Asset ID
 								</th>
-								<th className="text-xs text-slate-400 font-semibold uppercase text-left py-3 px-4">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 									Location
 								</th>
-								<th className="text-xs text-slate-400 font-semibold uppercase text-left py-3 px-4">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 									Anomaly Score
 								</th>
-								<th className="text-xs text-slate-400 font-semibold uppercase text-left py-3 px-4">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 									Est. Failure
 								</th>
-								<th className="text-xs text-slate-400 font-semibold uppercase text-left py-3 px-4">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 									Status
 								</th>
-								<th className="text-xs text-slate-400 font-semibold uppercase text-center py-3 px-4">
+								<th className="text-xs text-gray-500 font-semibold uppercase text-center py-3 px-4">
 									Actions
 								</th>
 							</tr>
@@ -233,17 +235,17 @@ export function PredictionsDashboard() {
 							{assets.map((asset, idx) => (
 								<tr
 									key={idx}
-									className="border-b border-slate-700 hover:bg-slate-900/30 transition-colors"
+									className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
 								>
-									<td className="py-4 px-4 text-sm font-semibold text-slate-200">
+									<td className="py-4 px-4 text-sm font-semibold text-gray-800">
 										{asset.id}
 									</td>
-									<td className="py-4 px-4 text-sm text-slate-300">
+									<td className="py-4 px-4 text-sm text-gray-600">
 										{asset.location}
 									</td>
 									<td className="py-4 px-4">
 										<div className="flex items-center gap-2">
-											<div className="w-24 bg-slate-700 rounded-full h-1.5 overflow-hidden">
+											<div className="w-24 bg-gray-200 rounded-full h-1.5 overflow-hidden">
 												<div
 													className={`h-full rounded-full transition-all ${
 														asset.anomalyScore > 80
@@ -255,12 +257,12 @@ export function PredictionsDashboard() {
 													style={{ width: `${asset.anomalyScore}%` }}
 												></div>
 											</div>
-											<span className="text-xs font-semibold text-slate-300 w-8">
+											<span className="text-xs font-semibold text-gray-600 w-8">
 												{asset.anomalyScore}%
 											</span>
 										</div>
 									</td>
-									<td className="py-4 px-4 text-sm text-slate-300">
+									<td className="py-4 px-4 text-sm text-gray-600">
 										{asset.estimatedFailure}
 									</td>
 									<td className="py-4 px-4">
@@ -275,7 +277,7 @@ export function PredictionsDashboard() {
 									<td className="py-4 px-4 text-center">
 										<button
 											type="button"
-											className="text-blue-400 hover:text-blue-300 text-xs font-semibold uppercase transition-colors"
+											className="text-blue-600 hover:text-blue-800 text-xs font-semibold uppercase transition-colors"
 										>
 											Investigate
 										</button>
@@ -289,30 +291,26 @@ export function PredictionsDashboard() {
 
 			{/* Bottom Metrics */}
 			<div className="grid grid-cols-3 gap-6">
-				<Card className="bg-slate-800/50 border-slate-700 p-4">
-					<div className="text-xs text-slate-400 font-semibold uppercase mb-3">
+				<Card className="bg-white border-gray-200 p-4">
+					<div className="text-xs text-gray-500 font-semibold uppercase mb-3">
 						Long-term Health Index
 					</div>
-					<div className="text-2xl font-bold text-blue-400">78.5%</div>
-					<div className="text-xs text-slate-500 mt-2">
-						+2.3% from last week
-					</div>
+					<div className="text-2xl font-bold text-blue-600">78.5%</div>
+					<div className="text-xs text-gray-400 mt-2">+2.3% from last week</div>
 				</Card>
-				<Card className="bg-slate-800/50 border-slate-700 p-4">
-					<div className="text-xs text-slate-400 font-semibold uppercase mb-3">
+				<Card className="bg-white border-gray-200 p-4">
+					<div className="text-xs text-gray-500 font-semibold uppercase mb-3">
 						Predictive Accuracy
 					</div>
-					<div className="text-2xl font-bold text-green-400">94.2%</div>
-					<div className="text-xs text-slate-500 mt-2">
-						Based on 12M records
-					</div>
+					<div className="text-2xl font-bold text-green-600">94.2%</div>
+					<div className="text-xs text-gray-400 mt-2">Based on 12M records</div>
 				</Card>
-				<Card className="bg-slate-800/50 border-slate-700 p-4">
-					<div className="text-xs text-slate-400 font-semibold uppercase mb-3">
+				<Card className="bg-white border-gray-200 p-4">
+					<div className="text-xs text-gray-500 font-semibold uppercase mb-3">
 						Next Scheduled Sync
 					</div>
-					<div className="text-2xl font-bold text-orange-400">2h 34m</div>
-					<div className="text-xs text-slate-500 mt-2">UTC+0</div>
+					<div className="text-2xl font-bold text-orange-500">2h 34m</div>
+					<div className="text-xs text-gray-400 mt-2">UTC+0</div>
 				</Card>
 			</div>
 		</div>

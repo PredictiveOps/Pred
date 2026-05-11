@@ -35,15 +35,15 @@ func openTestDB(t *testing.T) *gorm.DB {
 func TestRegisterDeviceForTenant(t *testing.T) {
 	openTestDB(t)
 
-	device, err := db.RegisterDeviceForTenant(5001, 1001)
+	device, err := db.RegisterDeviceForTenant(5001, "1001")
 	if err != nil {
 		t.Fatalf("RegisterDeviceForTenant: %v", err)
 	}
 	if device.DeviceID == 0 {
 		t.Fatal("expected non-zero device ID")
 	}
-	if device.TenantID != 1001 {
-		t.Fatalf("expected tenant_id 1001, got %d", device.TenantID)
+	if device.TenantID != "1001" {
+		t.Fatalf("expected tenant_id 1001, got %s", device.TenantID)
 	}
 	if device.PublicKey != nil {
 		t.Fatal("expected empty public key on HTTP registration")
@@ -59,9 +59,9 @@ func TestGetDevicesByTenantID(t *testing.T) {
 	pk1 := "key1"
 	pk2 := "key2"
 	devices := []db.Device{
-		{DeviceID: 100, TenantID: 2001, PublicKey: &pk1, IsActive: true},
-		{DeviceID: 101, TenantID: 2001, PublicKey: &pk2, IsActive: false},
-		{DeviceID: 102, TenantID: 2002, PublicKey: &pk1, IsActive: true},
+		{DeviceID: 100, TenantID: "2001", PublicKey: &pk1, IsActive: true},
+		{DeviceID: 101, TenantID: "2001", PublicKey: &pk2, IsActive: false},
+		{DeviceID: 102, TenantID: "2002", PublicKey: &pk1, IsActive: true},
 	}
 	for i := range devices {
 		if err := gdb.Create(&devices[i]).Error; err != nil {
@@ -69,7 +69,7 @@ func TestGetDevicesByTenantID(t *testing.T) {
 		}
 	}
 
-	got, err := db.GetDevicesByTenantID(2001)
+	got, err := db.GetDevicesByTenantID("2001")
 	if err != nil {
 		t.Fatalf("GetDevicesByTenantID: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestGetDeviceByID(t *testing.T) {
 	gdb := openTestDB(t)
 
 	pk := "test-key"
-	device := db.Device{DeviceID: 4001, TenantID: 4001, PublicKey: &pk, IsActive: true}
+	device := db.Device{DeviceID: 4001, TenantID: "4001", PublicKey: &pk, IsActive: true}
 	if err := gdb.Create(&device).Error; err != nil {
 		t.Fatalf("seed device: %v", err)
 	}
@@ -94,8 +94,8 @@ func TestGetDeviceByID(t *testing.T) {
 	if found.DeviceID != 4001 {
 		t.Fatalf("got device_id %d, want 4001", found.DeviceID)
 	}
-	if found.TenantID != 4001 {
-		t.Fatalf("got tenant_id %d, want 4001", found.TenantID)
+	if found.TenantID != "4001" {
+		t.Fatalf("got tenant_id %s, want 4001", found.TenantID)
 	}
 
 	newPK := "updated-key"

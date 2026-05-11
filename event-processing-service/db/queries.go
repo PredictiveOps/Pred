@@ -3,9 +3,9 @@ package db
 import (
 	"context"
 
-	"gorm.io/gorm/clause"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func InsertEvent(ctx context.Context, gdb *gorm.DB, tenantID string, payload []byte) (int64, error) {
@@ -128,6 +128,7 @@ func GetRetrainingConfig(ctx context.Context, gdb *gorm.DB, tenantID string) (*R
 func UpsertRetrainingConfig(ctx context.Context, gdb *gorm.DB, cfg *RetrainingConfig) error {
 	return gdb.WithContext(ctx).
 		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "tenant_id"}},
 			UpdateAll: true,
 		}).
 		Create(cfg).Error
@@ -208,6 +209,7 @@ func GetActiveModelVersion(ctx context.Context, gdb *gorm.DB, tenantID string) (
 func SetActiveModelVersion(ctx context.Context, gdb *gorm.DB, tenantID, modelID, version string) error {
 	return gdb.WithContext(ctx).
 		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "tenant_id"}},
 			UpdateAll: true,
 		}).
 		Create(&ActiveModelVersion{

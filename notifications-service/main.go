@@ -202,7 +202,7 @@ func fanOutEmail(ctx context.Context, gdb *gorm.DB, notifID int64, event AlertEv
 	return nil
 }
 
-func sendPush(token, platform string, payload json.RawMessage) error {
+func sendPush(token, platform string, _ json.RawMessage) error {
 	log.Printf("push -> %s (%s)", token, platform)
 	return nil
 }
