@@ -139,9 +139,10 @@ func resolveDevicePublicKey(deviceID uint, fallbackPublicKey *string) (string, e
 	return key, nil
 }
 
-func prepareKafkaPayload(deviceID uint, timestamp int64, data db.SensorDeviceData) *db.KafkaPayload {
+func prepareKafkaPayload(deviceID uint, tenantID string, timestamp int64, data db.SensorDeviceData) *db.KafkaPayload {
 	return &db.KafkaPayload{
 		DeviceID:  deviceID,
+		TenantID:  tenantID,
 		Timestamp: timestamp,
 		Mode:      data.Mode,
 		VRMS:      data.VRMS,

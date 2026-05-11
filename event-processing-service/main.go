@@ -57,6 +57,7 @@ func main() {
 	windowDuration := time.Duration(windowSecs) * time.Second
 
 	windowManager := processor.NewWindowManager(windowDuration, func(tenantID string, deviceID uint, readings []processor.SensorEvent) {
+		log.Printf("[window] flushing device=%d tenant=%q readings=%d", deviceID, tenantID, len(readings))
 		features := processor.Compute(readings)
 		payload := processor.MLRequest{
 			DeviceID: deviceID,
@@ -110,8 +111,9 @@ func main() {
 			continue
 		}
 
+		log.Printf("[kafka] received message topic=%q partition=%d offset=%d key=%q len=%d", msg.Topic, msg.Partition, msg.Offset, msg.Key, len(msg.Value))
 		if err := handleMessage(ctx, gdb, windowManager, msg); err != nil {
-			log.Printf("handle error (offset %d): %v", msg.Offset, err)
+			log.Printf("[kafka] handle error topic=%q partition=%d offset=%d: %v", msg.Topic, msg.Partition, msg.Offset, err)
 		}
 	}
 }
@@ -121,14 +123,16 @@ func handleMessage(ctx context.Context, gdb *gorm.DB, wm *processor.WindowManage
 	if err := json.Unmarshal(msg.Value, &event); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
+	log.Printf("[event] parsed device=%d tenant=%q offset=%d", event.DeviceID, event.TenantID, msg.Offset)
 
 	id, err := db.InsertEvent(ctx, gdb, event.TenantID, msg.Value)
 	if err != nil {
 		return fmt.Errorf("insert event: %w", err)
 	}
+	log.Printf("[db] event stored id=%d device=%d tenant=%q", id, event.DeviceID, event.TenantID)
 
-	log.Printf("event stored (id %d, device %d, tenant %q)", id, event.DeviceID, event.TenantID)
 	wm.Add(event)
+	log.Printf("[window] event added device=%d tenant=%q", event.DeviceID, event.TenantID)
 	return nil
 }
 
