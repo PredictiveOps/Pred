@@ -152,3 +152,30 @@ jobs:
       - name: Push Docker image to Artifact Registry
         run: |
           docker push ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ env.IMAGE_TAG }}
+
+  Update-GitOps:
+    name: Update GitOps Image Tag
+    runs-on: ubuntu-latest
+    needs: [BUILD_AND_PUBLISH]
+
+    steps:
+      - name: Clone GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: PredictiveOps/Pred-Gitops
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops
+
+      - name: Update image tag
+        run: |
+          sed -i "s|${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:.*|${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ env.IMAGE_TAG }}|g" \
+            gitops/apps/${{ env.SERVICE_NAME }}/deployment.yaml
+
+      - name: Commit and push
+        run: |
+          cd gitops
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add apps/${{ env.SERVICE_NAME }}/deployment.yaml
+          git commit -m "ci: update ${{ env.SERVICE_NAME }} image to ${{ env.IMAGE_TAG }}"
+          git push
