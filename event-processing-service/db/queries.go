@@ -2,11 +2,23 @@ package db
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+type EventFilter struct {
+	TenantID string
+	DeviceID string
+	Status   string
+	Mode     string
+	From     *time.Time
+	To       *time.Time
+	Limit    int
+	Offset   int
+}
 
 func InsertEvent(ctx context.Context, gdb *gorm.DB, tenantID string, payload []byte) (int64, error) {
 	e := Event{TenantID: tenantID, Payload: datatypes.JSON(payload)}
@@ -14,6 +26,39 @@ func InsertEvent(ctx context.Context, gdb *gorm.DB, tenantID string, payload []b
 		return 0, err
 	}
 	return e.ID, nil
+}
+
+func GetEvents(ctx context.Context, gdb *gorm.DB, filter EventFilter) ([]Event, error) {
+	var events []Event
+	query := gdb.WithContext(ctx).Model(&Event{})
+
+	if filter.TenantID != "" {
+		query = query.Where("tenant_id = ?", filter.TenantID)
+	}
+	if filter.DeviceID != "" {
+		query = query.Where("payload ->> 'device_id' = ?", filter.DeviceID)
+	}
+	if filter.Status != "" {
+		query = query.Where("payload ->> 'status' = ?", filter.Status)
+	}
+	if filter.Mode != "" {
+		query = query.Where("payload ->> 'mode' = ?", filter.Mode)
+	}
+	if filter.From != nil {
+		query = query.Where("created_at >= ?", *filter.From)
+	}
+	if filter.To != nil {
+		query = query.Where("created_at <= ?", *filter.To)
+	}
+	if filter.Limit > 0 {
+		query = query.Limit(filter.Limit)
+	}
+	if filter.Offset > 0 {
+		query = query.Offset(filter.Offset)
+	}
+
+	err := query.Order("created_at DESC").Find(&events).Error
+	return events, err
 }
 
 // ProcessedFeatures queries
