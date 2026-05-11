@@ -207,6 +207,12 @@ services:
     volumes:
       - ./keycloak/entrypoint.sh:/opt/keycloak-config/entrypoint.sh:ro
       - ./keycloak/configure.sh:/opt/keycloak-config/configure.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/keycloak-configured || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
     networks:
       - pred-network
 
@@ -229,7 +235,7 @@ services:
       - "${WEB_FRONTEND_PORT:-3000}:3000"
     depends_on:
       keycloak:
-        condition: service_started
+        condition: service_healthy
     networks:
       - pred-network
     restart: on-failure
@@ -390,7 +396,7 @@ services:
       kong:
         condition: service_healthy
       keycloak:
-        condition: service_started
+        condition: service_healthy
     networks:
       - pred-network
     restart: on-failure

@@ -209,6 +209,8 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
     restart: unless-stopped
 
   keycloak:
@@ -242,6 +244,12 @@ services:
       - ./keycloak/entrypoint.sh:/opt/keycloak-config/entrypoint.sh:ro
       - ./keycloak/configure.sh:/opt/keycloak-config/configure.sh:ro
     restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/keycloak-configured || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
 
   web-frontend:
     build:

@@ -240,3 +240,4 @@ else
 fi
 
 log "configuration complete: realm=${KC_REALM} client=${KC_CLIENT_ID} notifications-client=${KC_NOTIFICATIONS_CLIENT_ID} user=${TEST_USERNAME}"
+touch /tmp/keycloak-configured
