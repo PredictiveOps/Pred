@@ -187,6 +187,83 @@ services:
 
                   kong.service.request.set_header("X-Tenant-Id", tenant_id)
 
+  - name: notifications
+    host: notifications-upstream
+    routes:
+      - name: notifications-route
+        paths:
+          - /api/notifications
+        strip_path: true
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify:
+                - exp
+              run_on_preflight: false
+
+          - name: post-function
+            config:
+              access:
+                - |
+                  if kong.request.get_method() == "OPTIONS" then
+                    return
+                  end
+
+                  local auth = kong.request.get_header("authorization")
+                  kong.service.request.clear_header("X-Tenant-Id")
+
+                  if not auth then
+                    return
+                  end
+
+                  local m = ngx.re.match(auth, [[^\s*Bearer\s+([^\s]+)\s*$]], "jo")
+                  if not m then
+                    return
+                  end
+
+                  local token = m[1]
+                  local parts = {}
+
+                  for p in token:gmatch("[^%.]+") do
+                    parts[#parts + 1] = p
+                  end
+
+                  if #parts < 3 then
+                    return
+                  end
+
+                  local function b64url_decode(input)
+                    input = input:gsub("-", "+"):gsub("_", "/")
+
+                    local pad = #input % 4
+
+                    if pad == 2 then
+                      input = input .. "=="
+                    elseif pad == 3 then
+                      input = input .. "="
+                    elseif pad == 1 then
+                      return nil
+                    end
+
+                    return ngx.decode_base64(input)
+                  end
+
+                  local payload_json = b64url_decode(parts[2])
+
+                  if not payload_json then
+                    return
+                  end
+
+                  local tm = ngx.re.match(payload_json, [["tenant_id"\s*:\s*"([^"]+)"]], "jo")
+                  local tenant_id = tm and tm[1]
+
+                  if not tenant_id or tenant_id == "" then
+                    return kong.response.exit(403, { message = "tenant_id missing in token" })
+                  end
+
+                  kong.service.request.set_header("X-Tenant-Id", tenant_id)
+
 plugins:
   - name: cors
     config:

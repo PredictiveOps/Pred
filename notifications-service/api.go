@@ -34,11 +34,11 @@ func notificationsHandler(gdb *gorm.DB) http.HandlerFunc {
 			return
 		}
 
-		tenantID := r.URL.Query().Get("tenant_id")
+		tenantID := r.Header.Get("X-Tenant-Id")
 		if tenantID == "" {
-			http.Error(w, "tenant_id is required", http.StatusBadRequest)
+			http.Error(w, "X-Tenant-Id header is required", http.StatusBadRequest)
 			return
-		}
+}
 
 		limitStr := r.URL.Query().Get("limit")
 
@@ -67,7 +67,7 @@ func notificationsHandler(gdb *gorm.DB) http.HandlerFunc {
 
 func wsHandler(hub *Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		tenantID := r.URL.Query().Get("tenant_id")
+		tenantID := r.Header.Get("X-Tenant-Id")
 		if tenantID == "" {
 			http.Error(w, "tenant_id is required", http.StatusBadRequest)
 			return
