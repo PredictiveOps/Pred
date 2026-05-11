@@ -6,9 +6,14 @@ import os
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from kafka import KafkaConsumer
 
+from db_models import get_session, init_db
 from prediction_module import BearingAnomalyPredictor
+from prediction_service import PredictionService
+
+load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 MODEL_DIR = PROJECT_ROOT / "results" / "models"
@@ -29,12 +34,13 @@ def parse_brokers(raw: str) -> list[str]:
     return [entry.strip() for entry in raw.split(",") if entry.strip()]
 
 
-def handle_payload(payload: dict[str, Any]) -> None:
+def handle_payload(payload: dict[str, Any], db_engine) -> None:
+    tenant_id = payload.get("tenant_id") or "unknown-tenant"
     device_id = payload.get("device_id") or "unknown-device"
     asset_id = payload.get("asset_id") or device_id
     features = payload.get("features") or {}
 
-    prediction = PREDICTOR.predict(
+    result = PREDICTOR.predict(
         feature_row=features,
         device_id=device_id,
         asset_id=asset_id,
@@ -44,14 +50,35 @@ def handle_payload(payload: dict[str, Any]) -> None:
         "prediction device=%s asset=%s status=%s anomaly=%s score=%.4f",
         device_id,
         asset_id,
-        prediction.get("predicted_status"),
-        prediction.get("is_anomaly"),
-        prediction.get("anomaly_score", 0.0),
+        result.get("predicted_status"),
+        result.get("is_anomaly"),
+        result.get("anomaly_score", 0.0),
     )
+
+    session = get_session(db_engine)
+    try:
+        pred_service = PredictionService(session)
+        pred_service.save_prediction(
+            tenant_id=tenant_id,
+            device_id=device_id,
+            asset_id=asset_id,
+            model_name=PREDICTOR.model_name,
+            model_version=PREDICTOR.model_version,
+            anomaly_score=result["anomaly_score"],
+            predicted_status=result["predicted_status"],
+        )
+    finally:
+        session.close()
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="[ml-consumer] %(message)s")
+
+    database_url = get_env(
+        "DATABASE_URL",
+        "postgresql://user:password@localhost:5433/predictions",
+    )
+    db_engine = init_db(database_url)
 
     brokers = parse_brokers(get_env("KAFKA_BROKERS", "localhost:9092"))
     topic = get_env("ML_FEATURES_TOPIC", "ml-features")
@@ -71,7 +98,7 @@ def main() -> None:
 
     for message in consumer:
         try:
-            handle_payload(message.value)
+            handle_payload(message.value, db_engine)
         except Exception as exc:
             logging.exception("failed to handle payload: %s", exc)
 
