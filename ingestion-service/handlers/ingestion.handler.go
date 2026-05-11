@@ -50,7 +50,7 @@ func HandleMQTTMessage(client mqtt.Client, msg mqtt.Message) {
 }
 
 func handleMQTTDataMessage(deviceID uint, msg mqtt.Message) {
-	fallbackPublicKey, ok := loadActiveDevicePublicKey(deviceID)
+	tenantID, fallbackPublicKey, ok := loadActiveDevice(deviceID)
 	if !ok {
 		return
 	}
@@ -74,7 +74,7 @@ func handleMQTTDataMessage(deviceID uint, msg mqtt.Message) {
 	}
 
 	deviceKey := strconv.FormatUint(uint64(deviceID), 10)
-	kafkaPayload := prepareKafkaPayload(deviceID, message.Timestamp, sensorData)
+	kafkaPayload := prepareKafkaPayload(deviceID, tenantID, message.Timestamp, sensorData)
 	kafkaJSON, err := json.Marshal(kafkaPayload)
 	if err != nil {
 		log.Printf("failed to marshal kafka message: %v", err)
@@ -88,40 +88,38 @@ func handleMQTTDataMessage(deviceID uint, msg mqtt.Message) {
 	log.Printf("published message to kafka with key=%s", deviceKey)
 }
 
-func loadActiveDevicePublicKey(deviceID uint) (*string, bool) {
+func loadActiveDevice(deviceID uint) (tenantID string, publicKey *string, ok bool) {
 	if redisCache != nil {
-		isActive, publicKey, found, err := redisCache.GetDeviceState(context.Background(), deviceID)
+		isActive, key, found, err := redisCache.GetDeviceState(context.Background(), deviceID)
 		if err != nil {
 			log.Printf("failed to read device state cache: device_id=%d err=%v", deviceID, err)
 		} else if found {
 			if !isActive {
 				log.Printf("device is inactive: device_id=%d", deviceID)
-				return nil, false
+				return "", nil, false
 			}
-			if publicKey == "" {
+			if key == "" {
 				log.Printf("device has no public key registered: device_id=%d", deviceID)
-				return nil, false
+				return "", nil, false
 			}
-
-			cachedKey := publicKey
-			return &cachedKey, true
+			// Cache hit: tenant_id not cached, fall through to DB
 		}
 	}
 
 	device, err := db.GetDeviceByID(deviceID)
 	if err != nil {
 		log.Printf("device not found: device_id=%d err=%v", deviceID, err)
-		return nil, false
+		return "", nil, false
 	}
 
 	if !device.IsActive {
 		log.Printf("device is inactive: device_id=%d", deviceID)
-		return nil, false
+		return "", nil, false
 	}
 
 	if device.PublicKey == nil {
 		log.Printf("device has no public key registered: device_id=%d", deviceID)
-		return nil, false
+		return "", nil, false
 	}
 
 	if redisCache != nil {
@@ -130,5 +128,5 @@ func loadActiveDevicePublicKey(deviceID uint) (*string, bool) {
 		}
 	}
 
-	return device.PublicKey, true
+	return device.TenantID, device.PublicKey, true
 }
