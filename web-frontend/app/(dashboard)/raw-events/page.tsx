@@ -9,14 +9,16 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { fetchRawEvents, type RawEvent } from "@/lib/events-api";
 
-const DEFAULT_LIMIT = 20;
+const DEFAULT_LIMIT = 10;
 
 type ViewState = {
 	loading: boolean;
 	error?: string;
 	events: RawEvent[];
+	total: number;
 };
 
 function formatDate(value: string) {
@@ -46,7 +48,9 @@ export default function RawEventsPage() {
 	const [state, setState] = useState<ViewState>({
 		loading: true,
 		events: [],
+		total: 0,
 	});
+	const [page, setPage] = useState(0);
 
 	useEffect(() => {
 		if (status === "loading") {
@@ -56,22 +60,24 @@ export default function RawEventsPage() {
 		const accessToken = session?.accessToken;
 		const tenantId = session?.tenantId;
 
-		setState({ loading: true, events: [] });
+		setState((prev) => ({ ...prev, loading: true, error: undefined }));
 
-		fetchRawEvents(accessToken, tenantId, DEFAULT_LIMIT, 0)
+		fetchRawEvents(accessToken, tenantId, DEFAULT_LIMIT, page * DEFAULT_LIMIT)
 			.then((res) => {
-				setState({ loading: false, events: res.events });
+				setState({ loading: false, events: res.events, total: res.count });
 			})
 			.catch((err: Error) => {
 				setState({
 					loading: false,
 					events: [],
+					total: 0,
 					error: err.message,
 				});
 			});
-	}, [session?.accessToken, session?.tenantId, status]);
+	}, [page, session?.accessToken, session?.tenantId, status]);
 
 	const rows = useMemo(() => state.events, [state.events]);
+	const totalPages = Math.max(1, Math.ceil(state.total / DEFAULT_LIMIT));
 
 	return (
 		<div className="space-y-6">
@@ -88,7 +94,7 @@ export default function RawEventsPage() {
 					<CardDescription>
 						{state.loading
 							? "Loading events..."
-							: `${rows.length} events`}.
+							: `${rows.length} of ${state.total} events`}.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -161,6 +167,30 @@ export default function RawEventsPage() {
 								})}
 							</tbody>
 						</table>
+					</div>
+
+					<div className="mt-6 flex items-center justify-between gap-3">
+						<div className="text-xs text-gray-500">
+							Page {page + 1} of {totalPages}
+						</div>
+						<div className="flex items-center gap-2">
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={page === 0 || state.loading}
+								onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+							>
+								Previous
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={page + 1 >= totalPages || state.loading}
+								onClick={() => setPage((prev) => prev + 1)}
+							>
+								Next
+							</Button>
+						</div>
 					</div>
 				</CardContent>
 			</Card>

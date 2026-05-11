@@ -65,14 +65,14 @@ func listAllEvents(gdb *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		events, err := db.GetEvents(c.Request.Context(), gdb, filter)
+		events, total, err := db.GetEventsWithCount(c.Request.Context(), gdb, filter)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"count":  len(events),
+			"count":  total,
 			"events": events,
 		})
 	}
@@ -86,7 +86,7 @@ func listEvents(gdb *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		events, err := db.GetEvents(c.Request.Context(), gdb, filter)
+		events, total, err := db.GetEventsWithCount(c.Request.Context(), gdb, filter)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -94,7 +94,7 @@ func listEvents(gdb *gorm.DB) gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{
 			"tenant_id": tenantID,
-			"count":     len(events),
+			"count":     total,
 			"events":    events,
 		})
 	}
