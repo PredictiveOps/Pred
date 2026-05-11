@@ -237,18 +237,19 @@ func TestPrepareKafkaPayload_FieldMapping(t *testing.T) {
 		PeakHz3: 30,
 		Status:  "ok",
 	}
-	kp := prepareKafkaPayload(99, 1234, data)
+	kp := prepareKafkaPayload(99, "default-tenant", 1234, data)
 
 	checks := map[string]bool{
-		"device_id":  kp.DeviceID == 99,
-		"timestamp":  kp.Timestamp == 1234,
-		"mode":       kp.Mode == data.Mode,
-		"vrms":       kp.VRMS == data.VRMS,
-		"temp_c":     kp.TempC == data.TempC,
-		"peak_hz_1":  kp.PeakHz1 == data.PeakHz1,
-		"peak_hz_2":  kp.PeakHz2 == data.PeakHz2,
-		"peak_hz_3":  kp.PeakHz3 == data.PeakHz3,
-		"status":     kp.Status == data.Status,
+		"device_id": kp.DeviceID == 99,
+		"tenant_id": kp.TenantID == "default-tenant",
+		"timestamp": kp.Timestamp == 1234,
+		"mode":      kp.Mode == data.Mode,
+		"vrms":      kp.VRMS == data.VRMS,
+		"temp_c":    kp.TempC == data.TempC,
+		"peak_hz_1": kp.PeakHz1 == data.PeakHz1,
+		"peak_hz_2": kp.PeakHz2 == data.PeakHz2,
+		"peak_hz_3": kp.PeakHz3 == data.PeakHz3,
+		"status":    kp.Status == data.Status,
 	}
 	for field, ok := range checks {
 		if !ok {
