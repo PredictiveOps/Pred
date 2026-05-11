@@ -110,6 +110,10 @@ func eventFilterFromQuery(c *gin.Context, tenantID string) (db.EventFilter, bool
 	}
 
 	if filter.TenantID == "" {
+		filter.TenantID = c.GetHeader("X-Tenant-Id")
+	}
+
+	if filter.TenantID == "" {
 		filter.TenantID = c.Query("tenant_id")
 	}
 
