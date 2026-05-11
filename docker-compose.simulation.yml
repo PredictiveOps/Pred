@@ -202,6 +202,7 @@ services:
       KEYCLOAK_REALM: pred
       KEYCLOAK_CLIENT_ID: notifications-service
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-notifications-service-secret}
+      FAILURE_THRESHOLD: 0.1
     depends_on:
       postgres-sim:
         condition: service_healthy
