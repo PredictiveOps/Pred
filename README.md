@@ -109,6 +109,26 @@ When calling services directly (bypassing Kong, e.g. in local development), supp
 curl -H 'X-Tenant-Id: <tenant_id>' ...
 ```
 
+## Ports
+
+Every service owns a unique port. The same port number is used in both local development and the cluster so there is no environment-specific mapping to remember.
+
+| Service                  | Port | Local host port | Notes                                                   |
+| ------------------------ | ---- | --------------- | ------------------------------------------------------- |
+| postgres                 | 5432 | 5433            | Just in case if postgres is installed on the host       |
+| kafka                    | 9092 | 9092            | 9093 used internally for KRaft controller               |
+| redis                    | 6379 | 6379            |                                                         |
+| mosquitto                | 8883 | 8883            | MQTTS                                                   |
+| prometheus               | 9090 | 9090            |                                                         |
+| keycloak                 | 8080 | 8080            |                                                         |
+| kong (proxy)             | 8000 | 8000            |                                                         |
+| kong (admin API)         | 8001 | 8001            |                                                         |
+| web-frontend             | 3000 | 3000            |                                                         |
+| ingestion-service        | 8081 | 8081            |                                                         |
+| event-processing-service | 8082 | 8082            |                                                         |
+| notifications-service    | 8083 | 8083            |                                                         |
+| ml-service               | 8084 | 8084            |                                                         |
+
 ## Services
 
 All services must have a `.env.example` file with the required and optional environment variables with their default values.

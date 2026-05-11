@@ -3,7 +3,7 @@ _format_version: "3.0"
 upstreams:
   - name: event-processing-upstream
     targets:
-      - target: event-processing-service:8080
+      - target: event-processing-service:8082
         weight: 100
     healthchecks:
       active:
@@ -22,7 +22,7 @@ upstreams:
 
   - name: ingestion-upstream
     targets:
-      - target: ingestion-service:8003
+      - target: ingestion-service:8081
         weight: 100
     healthchecks:
       active:
