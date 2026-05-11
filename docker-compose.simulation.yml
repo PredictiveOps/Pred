@@ -1,7 +1,16 @@
+x-no-proxy: &no-proxy
+  HTTP_PROXY: ""
+  HTTPS_PROXY: ""
+  http_proxy: ""
+  https_proxy: ""
+  ALL_PROXY: ""
+  all_proxy: ""
+
 services:
   postgres-sim:
     image: postgres:18
     environment:
+      <<: *no-proxy
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
@@ -18,6 +27,7 @@ services:
   kafka:
     image: apache/kafka:4.2.0
     environment:
+      <<: *no-proxy
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
@@ -40,6 +50,7 @@ services:
     ports:
       - "8085:8080"
     environment:
+      <<: *no-proxy
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
     depends_on:
@@ -49,6 +60,7 @@ services:
     image: eclipse-mosquitto:2
     user: root
     environment:
+      <<: *no-proxy
       MQTT_DEVICE_USERNAME: ${MQTT_DEVICE_USERNAME:-pred-device}
       MQTT_DEVICE_PASSWORD: ${MQTT_DEVICE_PASSWORD:-dev-device-password}
       MQTT_INGESTION_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
@@ -66,6 +78,8 @@ services:
 
   redis:
     image: redis:7-alpine
+    environment:
+      <<: *no-proxy
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_sim_data:/data
@@ -79,23 +93,24 @@ services:
     build:
       context: ./ingestion-service
     environment:
-      - PORT=8081
-      - DATABASE_URL=postgres://postgres:postgres@postgres-sim:5432/ingestion_sim
-      - KAFKA_BROKERS=kafka:29092
-      - KAFKA_TOPIC=sensor_data
-      - MQTT_BROKER=ssl://mosquitto:8883
-      - MQTT_CLIENT_ID=ingestion-service-sim
-      - MQTT_USERNAME=${MQTT_INGESTION_USERNAME:-pred-ingestion}
-      - MQTT_PASSWORD=${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
-      - MQTT_CA_CERT=/mosquitto/certs/ca.crt
-      - MQTT_TOPIC=devices/+/data
-      - MQTT_DEVICE_REGISTRATION_TOPIC=devices/+/registration
-      - MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC=devices/%d/registration/response
-      - REDIS_ADDR=redis:6379
-      - REDIS_PASSWORD=
-      - REDIS_DB=0
-      - REDIS_PUBKEY_TTL=30m
-      - REDIS_NONCE_TTL=60s
+      <<: *no-proxy
+      PORT: "8081"
+      DATABASE_URL: postgres://postgres:postgres@postgres-sim:5432/ingestion_sim
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_TOPIC: sensor_data
+      MQTT_BROKER: ssl://mosquitto:8883
+      MQTT_CLIENT_ID: ingestion-service-sim
+      MQTT_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
+      MQTT_PASSWORD: ${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
+      MQTT_CA_CERT: /mosquitto/certs/ca.crt
+      MQTT_TOPIC: devices/+/data
+      MQTT_DEVICE_REGISTRATION_TOPIC: devices/+/registration
+      MQTT_DEVICE_REGISTRATION_RESPONSE_TOPIC: devices/%d/registration/response
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: "0"
+      REDIS_PUBKEY_TTL: 30m
+      REDIS_NONCE_TTL: 60s
     volumes:
       - ./mosquitto/certs:/mosquitto/certs:ro
     depends_on:
@@ -107,34 +122,46 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "no_proxy=localhost wget -qO- http://localhost:8081/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     restart: unless-stopped
 
   event-processing-service:
     build:
       context: ./event-processing-service
     environment:
-      - DATABASE_URL=postgres://postgres:postgres@postgres-sim:5432/events_sim
-      - KAFKA_BROKERS=kafka:29092
-      - KAFKA_TOPIC=sensor_data
-      - KAFKA_GROUP_ID=event-processing-service-sim
-      - HTTP_PORT=8082
-      - ML_FEATURES_TOPIC=ml-features
-      - WINDOW_DURATION_SECONDS=5
+      <<: *no-proxy
+      DATABASE_URL: postgres://postgres:postgres@postgres-sim:5432/events_sim
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_TOPIC: sensor_data
+      KAFKA_GROUP_ID: event-processing-service-sim
+      HTTP_PORT: "8082"
+      ML_FEATURES_TOPIC: ml-features
+      WINDOW_DURATION_SECONDS: "5"
     depends_on:
       postgres-sim:
         condition: service_healthy
       kafka:
         condition: service_healthy
     restart: unless-stopped
+    develop:
+      watch:
+        - action: rebuild
+          path: ./event-processing-service
 
   ml-service:
     build:
       context: ./ai-ml
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres-sim:5432/events_sim
-      - KAFKA_BROKERS=kafka:29092
-      - ML_FEATURES_TOPIC=ml-features
-      - ML_KAFKA_GROUP_ID=ml-service-sim
+      <<: *no-proxy
+      DATABASE_URL: postgresql://postgres:postgres@postgres-sim:5432/events_sim
+      KAFKA_BROKERS: kafka:29092
+      ML_FEATURES_TOPIC: ml-features
+      ML_KAFKA_GROUP_ID: ml-service-sim
     depends_on:
       postgres-sim:
         condition: service_healthy
@@ -146,11 +173,12 @@ services:
     build:
       context: ./notifications-service
     environment:
-      - DATABASE_URL=postgres://postgres:postgres@postgres-sim:5432/notifications_sim
-      - KAFKA_BROKERS=kafka:29092
-      - KAFKA_TOPIC=notifications
-      - KAFKA_GROUP_ID=notifications-service-sim
-      - EMAIL_PROVIDER=stub
+      <<: *no-proxy
+      DATABASE_URL: postgres://postgres:postgres@postgres-sim:5432/notifications_sim
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_TOPIC: notifications
+      KAFKA_GROUP_ID: notifications-service-sim
+      EMAIL_PROVIDER: stub
     depends_on:
       postgres-sim:
         condition: service_healthy
@@ -161,6 +189,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.1
     environment:
+      <<: *no-proxy
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
       KC_DB: postgres
@@ -195,6 +224,7 @@ services:
       target: builder
     command: npm run dev
     environment:
+      <<: *no-proxy
       NODE_ENV: development
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-32-character-secret-key-here-change-in-production}
@@ -229,12 +259,13 @@ services:
   kong:
     image: kong:3.4.1
     environment:
-      - KONG_DATABASE=off
-      - KONG_PROXY_ACCESS_LOG=/dev/stdout
-      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
-      - KONG_PROXY_ERROR_LOG=/dev/stderr
-      - KONG_ADMIN_ERROR_LOG=/dev/stderr
-      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+      <<: *no-proxy
+      KONG_DATABASE: "off"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
     ports:
       - "8000:8000"
       - "8001:8001"
@@ -254,9 +285,11 @@ services:
     build:
       context: ./kong/jwks-sync
     environment:
-      - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/pred/protocol/openid-connect/certs
-      - KONG_ADMIN_URL=http://kong:8001
-      - POLL_INTERVAL=300
+      <<: *no-proxy
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/pred/protocol/openid-connect/certs
+      KONG_ADMIN_URL: http://kong:8001
+      POLL_INTERVAL: "300"
+      no_proxy: ${no_proxy},keycloak,kong
     volumes:
       - ./kong/kong.yml:/etc/kong/kong.yml:ro
     depends_on:
@@ -270,19 +303,25 @@ services:
     build:
       context: ./device-simulation
     environment:
-      - INGESTION_HTTP_URL=http://ingestion-service:8081
-      - MQTT_BROKER_HOST=mosquitto
-      - MQTT_BROKER_PORT=8883
-      - MQTT_DEVICE_USERNAME=${MQTT_DEVICE_USERNAME:-pred-device}
-      - MQTT_DEVICE_PASSWORD=${MQTT_DEVICE_PASSWORD:-dev-device-password}
-      - MQTT_CA_CERT=/mosquitto/certs/ca.crt
-      - TENANT_ID=1
-      - SEND_INTERVAL_MIN=5
-      - SEND_INTERVAL_MAX=30
+      <<: *no-proxy
+      INGESTION_HTTP_URL: http://ingestion-service:8081
+      MQTT_BROKER_HOST: mosquitto
+      MQTT_BROKER_PORT: "8883"
+      MQTT_DEVICE_USERNAME: ${MQTT_DEVICE_USERNAME:-pred-device}
+      MQTT_DEVICE_PASSWORD: ${MQTT_DEVICE_PASSWORD:-dev-device-password}
+      MQTT_CA_CERT: /mosquitto/certs/ca.crt
+      TENANT_ID: "tenant-001"
+      SEND_INTERVAL_MIN: "5"
+      SEND_INTERVAL_MAX: "30"
+      NO_PROXY: ${NO_PROXY:-},ingestion-service,mosquitto
+      INGESTION_DB_URL: postgresql://postgres:postgres@postgres-sim:5432/ingestion_sim
     volumes:
       - ./mosquitto/certs:/mosquitto/certs:ro
     depends_on:
-      - ingestion-service
+      ingestion-service:
+        condition: service_healthy
+      postgres-sim:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

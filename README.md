@@ -70,6 +70,12 @@ For authentication setup, see [keycloak/README.md](./keycloak/README.md).
 
 For MQTT broker setup and credentials, see [mosquitto/README.md](./mosquitto/README.md).
 
+Generate the dev TLS certificates (required before first run):
+
+```sh
+make create-mosquitto-certificates
+```
+
 ### Running tests
 
 Go services share a test Postgres instance (host port `5434`) and a test Kafka broker (host port `19092`) defined in `docker-compose.test.yml`. Each service gets its own database in the test Postgres. Both run alongside the dev compose without port conflicts.

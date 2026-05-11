@@ -1,7 +1,16 @@
+x-no-proxy: &no-proxy
+  HTTP_PROXY: ""
+  HTTPS_PROXY: ""
+  http_proxy: ""
+  https_proxy: ""
+  ALL_PROXY: ""
+  all_proxy: ""
+
 services:
   postgres:
     image: postgres:18
     environment:
+      <<: *no-proxy
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
@@ -22,6 +31,7 @@ services:
   kafka:
     image: apache/kafka:4.2.0
     environment:
+      <<: *no-proxy
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
@@ -45,6 +55,8 @@ services:
 
   redis:
     image: redis:7-alpine
+    environment:
+      <<: *no-proxy
     ports:
       - "6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
@@ -62,6 +74,7 @@ services:
     image: eclipse-mosquitto:2
     user: root
     environment:
+      <<: *no-proxy
       MQTT_DEVICE_USERNAME: ${MQTT_DEVICE_USERNAME:-pred-device}
       MQTT_DEVICE_PASSWORD: ${MQTT_DEVICE_PASSWORD:-dev-device-password}
       MQTT_INGESTION_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
@@ -88,6 +101,8 @@ services:
   prometheus:
     image: prom/prometheus:v3.11.3
     container_name: prometheus
+    environment:
+      <<: *no-proxy
     ports:
       - "9090:9090"
     volumes:
@@ -103,6 +118,7 @@ services:
   ingestion-service:
     build: ./ingestion-service
     environment:
+      <<: *no-proxy
       PORT: ${INGESTION_PORT:-8081}
       DATABASE_URL: ${INGESTION_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/ingestion}
       KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
@@ -129,6 +145,12 @@ services:
       #   condition: service_healthy
     volumes:
       - ./mosquitto/certs:/mosquitto/certs:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     networks:
       - pred-network
     restart: on-failure
@@ -140,6 +162,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.1
     environment:
+      <<: *no-proxy
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
       KC_DB: postgres
@@ -175,6 +198,7 @@ services:
       target: builder
     command: npm run dev
     environment:
+      <<: *no-proxy
       NODE_ENV: development
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-32-character-secret-key-here-change-in-production}
@@ -219,23 +243,27 @@ services:
   event-processing-service:
     build: ./event-processing-service
     environment:
+      <<: *no-proxy
+      DATABASE_URL: ${EVENTS_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/events}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
+      KAFKA_TOPIC: ${EVENTS_KAFKA_TOPIC:-sensor_data}
+      KAFKA_GROUP_ID: ${EVENTS_KAFKA_GROUP_ID:-event-processing-service}
+      HTTP_PORT: "8082"
+      ML_FEATURES_TOPIC: ${ML_FEATURES_TOPIC:-ml-features}
+      WINDOW_DURATION_SECONDS: ${WINDOW_DURATION_SECONDS:-5}
       PORT: 8082
       MQTT_BROKER: tcp://mosquitto:1883
       MQTT_CLIENT_ID: ingestion-service
       MQTT_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
       MQTT_PASSWORD: ${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
       MQTT_TOPIC: sensors/data
-      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:29092}
-      KAFKA_TOPIC: ${KAFKA_TOPIC:-notifications}
-      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-notifications-service}
-      DATABASE_URL: ${NOTIFICATIONS_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/notifications}
     ports:
       - "8082:8082"
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
     networks:
       - pred-network
     restart: on-failure
@@ -244,6 +272,7 @@ services:
     build:
       context: ./notifications-service
     environment:
+      <<: *no-proxy
       PORT: 8083
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/notifications
       KAFKA_BROKERS: kafka:9092
@@ -261,6 +290,7 @@ services:
   ml-service:
     build: ./ai-ml
     environment:
+      <<: *no-proxy
       ML_PORT: ${ML_PORT:-8084}
       ML_LOG_LEVEL: ${ML_LOG_LEVEL:-info}
       DATABASE_URL: ${ML_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/predictions}
@@ -296,12 +326,12 @@ services:
   kong:
     image: kong:3.4.1
     environment:
-      - KONG_DATABASE=off
-      - KONG_PROXY_ACCESS_LOG=/dev/stdout
-      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
-      - KONG_PROXY_ERROR_LOG=/dev/stderr
-      - KONG_ADMIN_ERROR_LOG=/dev/stderr
-      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+      KONG_DATABASE: off
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
     ports:
       - "8000:8000"
       - "8001:8001"
