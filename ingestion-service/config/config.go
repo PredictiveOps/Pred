@@ -20,10 +20,7 @@ func LoadConfig() {
 		log.Println("No .env file found. Falling back to system environment variables.")
 	}
 
-	Port = os.Getenv("PORT")
-	if Port == "" {
-		Port = "8081"
-	}
+	Port = getEnv("PORT", "8081")
 	DatabaseURL = os.Getenv("DATABASE_URL")
 	KafkaBrokers = os.Getenv("KAFKA_BROKERS")
 	KafkaTopic = os.Getenv("KAFKA_TOPIC")

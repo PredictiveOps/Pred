@@ -23,8 +23,7 @@ type DeviceDetails struct {
 }
 
 type DeviceHTTPRegistrationRequest struct {
-	DeviceID uint   `json:"device_id"`
-	TenantID string `json:"tenant_id"`
+	DeviceID uint `json:"device_id"`
 }
 
 type DeviceRegistrationRequest struct {

@@ -40,13 +40,12 @@ func RegisterDeviceHTTP(gdb *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
 			return
 		}
-		req.TenantID = tenantID
 		if req.DeviceID == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "device_id is required"})
 			return
 		}
 
-		device, err := db.RegisterDeviceForTenant(req.DeviceID, req.TenantID)
+		device, err := db.RegisterDeviceForTenant(req.DeviceID, tenantID)
 		if err != nil {
 			log.Printf("failed to register device: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register device"})
