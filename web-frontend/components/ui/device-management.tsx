@@ -265,9 +265,6 @@ export function DeviceManagement() {
 										Device ID
 									</th>
 									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
-										Tenant ID
-									</th>
-									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 										Status
 									</th>
 									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
@@ -296,7 +293,7 @@ export function DeviceManagement() {
 								{!loading && devices.length === 0 && (
 									<tr>
 										<td
-											colSpan={6}
+											colSpan={5}
 											className="py-10 text-center text-gray-400 text-sm"
 										>
 											No devices registered yet. Use "Add New Device" to
@@ -317,9 +314,6 @@ export function DeviceManagement() {
 													<span className="text-sm font-semibold text-gray-800">
 														#{device.device_id}
 													</span>
-												</td>
-												<td className="py-4 px-4 text-sm text-gray-600">
-													{device.tenant_id}
 												</td>
 												<td className="py-4 px-4">
 													<div className="flex items-center gap-2">

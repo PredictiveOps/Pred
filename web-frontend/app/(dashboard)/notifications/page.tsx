@@ -236,9 +236,6 @@ export default function NotificationsPage() {
 										ID
 									</th>
 									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
-										Tenant
-									</th>
-									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 										Type
 									</th>
 									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
@@ -290,9 +287,6 @@ export default function NotificationsPage() {
 													<span className="text-sm font-semibold text-gray-800">
 														#{n.id}
 													</span>
-												</td>
-												<td className="py-4 px-4 text-sm text-gray-600">
-													{n.tenant_id}
 												</td>
 												<td className="py-4 px-4">
 													<span
