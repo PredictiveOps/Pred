@@ -1,28 +1,22 @@
 "use client";
 
 import {
+	AlertCircle,
 	AlertTriangle,
 	Bell,
-	Clock3,
-	Database,
+	CheckCircle2,
+	Loader2,
 	RefreshCcw,
-	Search,
-	Sparkles,
-	Wifi,
-	WifiOff,
+	XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
-type NotificationRecord = {
+type Notification = {
 	id: number;
 	tenant_id: string;
 	type: string;
@@ -30,247 +24,93 @@ type NotificationRecord = {
 	created_at: string;
 };
 
-const API_BASE_URL =
-	process.env.NEXT_PUBLIC_NOTIFICATIONS_API_URL ?? "http://localhost:8080";
-const DEFAULT_TENANT_ID = "factory1";
-
-function normalizePayload(payload: unknown) {
-	if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-		return payload as Record<string, unknown>;
-	}
-
-	if (typeof payload === "string") {
-		try {
-			const parsed = JSON.parse(payload);
-			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-				return parsed as Record<string, unknown>;
-			}
-		} catch {
-			return null;
-		}
-	}
-
-	return null;
-}
-
-function getFailureProbability(payload: unknown) {
-	const normalized = normalizePayload(payload);
-	if (!normalized) {
-		return null;
-	}
-
-	const probability = normalized.failure_probability;
-	if (typeof probability === "number") {
-		return probability;
-	}
-	if (typeof probability === "string") {
-		const parsed = Number.parseFloat(probability);
-		return Number.isNaN(parsed) ? null : parsed;
-	}
-
-	return null;
-}
-
-function summarizePayload(payload: unknown) {
-	const normalized = normalizePayload(payload);
-	if (!normalized) {
-		return "No structured payload";
-	}
-
-	const message = normalized.message;
-	if (typeof message === "string" && message.trim()) {
-		return message;
-	}
-
-	const title = normalized.title;
-	if (typeof title === "string" && title.trim()) {
-		return title;
-	}
-
-	const probability = getFailureProbability(normalized);
-	if (probability !== null) {
-		return `Failure probability ${Math.round(probability * 100)}%`;
-	}
-
-	return `${Object.keys(normalized).length} payload fields`;
-}
+const BASE_URL = `${process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8000"}/api/notifications`;
+console.log({ BASE_URL });
 
 function formatDate(value: string) {
 	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) {
-		return value;
-	}
-
+	if (Number.isNaN(date.getTime())) return value;
 	return new Intl.DateTimeFormat("en", {
 		dateStyle: "medium",
 		timeStyle: "short",
 	}).format(date);
 }
 
-export default function Home() {
-	const [tenantId, setTenantId] = useState(DEFAULT_TENANT_ID);
-	const [limit, setLimit] = useState("10");
-	const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
-	const [loading, setLoading] = useState(false);
+function getFailureProbability(payload: unknown): number | null {
+	if (!payload || typeof payload !== "object" || Array.isArray(payload))
+		return null;
+	const p = (payload as Record<string, unknown>).failure_probability;
+	if (typeof p === "number") return p;
+	if (typeof p === "string") {
+		const n = Number.parseFloat(p);
+		return Number.isNaN(n) ? null : n;
+	}
+	return null;
+}
+
+function summarizePayload(payload: unknown): string {
+	if (!payload || typeof payload !== "object" || Array.isArray(payload))
+		return "No structured payload";
+	const obj = payload as Record<string, unknown>;
+	if (typeof obj.message === "string" && obj.message.trim()) return obj.message;
+	if (typeof obj.title === "string" && obj.title.trim()) return obj.title;
+	const prob = getFailureProbability(payload);
+	if (prob !== null) return `Failure probability ${Math.round(prob * 100)}%`;
+	return `${Object.keys(obj).length} payload fields`;
+}
+
+export default function NotificationsPage() {
+	const { data: session } = useSession();
+	const [notifications, setNotifications] = useState<Notification[]>([]);
+	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-	const [wsConnected, setWsConnected] = useState(false);
-	const wsRef = useRef<WebSocket | null>(null);
-	const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	const [limit, setLimit] = useState(20);
 
-	const loadNotifications = useCallback(
-		async (nextTenantId: string, nextLimit: string) => {
-			const trimmedTenantId = nextTenantId.trim();
-			const normalizedLimit = Number.parseInt(nextLimit, 10);
+	const tenantId = session?.tenantId ?? "";
+	const accessToken = session?.accessToken;
 
-			if (!trimmedTenantId) {
-				setError("Enter a tenant ID to load notifications.");
-				setNotifications([]);
-				return;
+	const loadNotifications = useCallback(async () => {
+		if (!tenantId) return;
+		setLoading(true);
+		setError(null);
+		try {
+			const res = await fetch(`${BASE_URL}/list?limit=${limit}`, {
+				headers: {
+					"Content-Type": "application/json",
+					"X-Tenant-Id": tenantId,
+					...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+				},
+				cache: "no-store",
+			});
+			if (!res.ok) {
+				const body = await res.text().catch(() => "");
+				throw new Error(`HTTP ${res.status}: ${body}`);
 			}
-
-			setLoading(true);
-			setError(null);
-
-			try {
-				const query = new URLSearchParams({
-					tenant_id: trimmedTenantId,
-					limit:
-						Number.isFinite(normalizedLimit) && normalizedLimit > 0
-							? String(normalizedLimit)
-							: "10",
-				});
-
-				const response = await fetch(
-					`${API_BASE_URL}/notifications?${query.toString()}`,
-					{
-						cache: "no-store",
-					},
-				);
-
-				if (!response.ok) {
-					const body = await response.text();
-					throw new Error(
-						body || `Request failed with status ${response.status}`,
-					);
-				}
-
-				const data = (await response.json()) as NotificationRecord[];
-				setNotifications(data);
-				setLastUpdated(new Date().toISOString());
-			} catch (fetchError) {
-				setError(
-					fetchError instanceof Error
-						? fetchError.message
-						: "Failed to load notifications.",
-				);
-				setNotifications([]);
-			} finally {
-				setLoading(false);
-			}
-		},
-		[],
-	);
-
-	// WebSocket connection for real-time notifications
-	useEffect(() => {
-		if (!tenantId.trim()) {
-			setWsConnected(false);
-			if (wsRef.current) {
-				wsRef.current.close();
-				wsRef.current = null;
-			}
-			return;
+			const data = (await res.json()) as Notification[];
+			setNotifications(data);
+		} catch (err) {
+			setError(
+				err instanceof Error
+					? err.message
+					: "Failed to load notifications. Is the notifications service running?",
+			);
+			setNotifications([]);
+		} finally {
+			setLoading(false);
 		}
-
-		const connectWebSocket = () => {
-			try {
-				const wsBaseUrl = API_BASE_URL.replace(/^http/, "ws");
-				const ws = new WebSocket(
-					`${wsBaseUrl}/ws?tenant_id=${encodeURIComponent(tenantId)}`,
-				);
-
-				ws.onopen = () => {
-					console.log("WebSocket connected for tenant:", tenantId);
-					setWsConnected(true);
-					if (reconnectTimeoutRef.current) {
-						clearTimeout(reconnectTimeoutRef.current);
-						reconnectTimeoutRef.current = null;
-					}
-				};
-
-				ws.onmessage = (event) => {
-					try {
-						const message = JSON.parse(event.data);
-						if (message.type === "new_notification") {
-							// Prepend new notification to the list
-							const newNotif: NotificationRecord = {
-								id: Math.floor(Math.random() * 1000000),
-								tenant_id: tenantId,
-								type: "push", // Default type; could be parsed from message
-								payload: message.data,
-								created_at: new Date().toISOString(),
-							};
-							setNotifications((prev) => [newNotif, ...prev]);
-							setLastUpdated(new Date().toISOString());
-						}
-					} catch (parseError) {
-						console.error("Failed to parse WebSocket message:", parseError);
-					}
-				};
-
-				ws.onerror = (event) => {
-					console.error("WebSocket error:", event);
-					setWsConnected(false);
-				};
-
-				ws.onclose = () => {
-					console.log("WebSocket closed");
-					setWsConnected(false);
-					// Attempt to reconnect after 3 seconds
-					if (reconnectTimeoutRef.current) {
-						clearTimeout(reconnectTimeoutRef.current);
-					}
-					reconnectTimeoutRef.current = setTimeout(connectWebSocket, 3000);
-				};
-
-				wsRef.current = ws;
-			} catch (err) {
-				console.error("Failed to create WebSocket:", err);
-				setWsConnected(false);
-			}
-		};
-
-		connectWebSocket();
-
-		return () => {
-			if (reconnectTimeoutRef.current) {
-				clearTimeout(reconnectTimeoutRef.current);
-				reconnectTimeoutRef.current = null;
-			}
-			if (wsRef.current) {
-				wsRef.current.close();
-				wsRef.current = null;
-			}
-		};
-	}, [tenantId]);
+	}, [tenantId, accessToken, limit]);
 
 	useEffect(() => {
-		void loadNotifications(DEFAULT_TENANT_ID, "10");
-	}, [loadNotifications]);
+		if (session) void loadNotifications();
+	}, [session, loadNotifications]);
 
 	const stats = useMemo(() => {
-		const emailCount = notifications.filter(
-			(item) => item.type === "email",
-		).length;
-		const pushCount = notifications.filter(
-			(item) => item.type === "push",
-		).length;
-		const highRiskCount = notifications.filter((item) => {
-			const probability = getFailureProbability(item.payload);
-			return probability !== null && probability >= 0.8;
+		const emailCount = notifications.filter((n) => n.type === "email").length;
+		const pushCount = notifications.filter((n) => n.type === "push").length;
+		const highRiskCount = notifications.filter((n) => {
+			const p = getFailureProbability(n.payload);
+			return p !== null && p >= 0.8;
 		}).length;
-
 		return {
 			total: notifications.length,
 			emailCount,
@@ -279,240 +119,224 @@ export default function Home() {
 		};
 	}, [notifications]);
 
+	const statCards = [
+		{
+			label: "TOTAL ALERTS",
+			value: String(stats.total),
+			icon: Bell,
+			color: "text-blue-600",
+		},
+		{
+			label: "EMAIL ALERTS",
+			value: String(stats.emailCount),
+			icon: CheckCircle2,
+			color: "text-green-600",
+		},
+		{
+			label: "HIGH-RISK ALERTS",
+			value: String(stats.highRiskCount),
+			icon: AlertCircle,
+			color: stats.highRiskCount > 0 ? "text-red-500" : "text-gray-400",
+		},
+	];
+
 	return (
-		<div className="min-h-screen bg-gray-50 text-gray-900">
-			<main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-				<section className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-					<div className="grid gap-8 lg:grid-cols-[1.4fr_0.9fr] lg:items-center">
-						<div className="space-y-6">
-							<div className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm text-emerald-700">
-								<Sparkles className="size-4" />
-								Notification dashboard
-							</div>
-							<div className="space-y-3">
-								<h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl">
-									Live alerts from the notification service.
-								</h1>
-								<p className="max-w-2xl text-base leading-7 text-gray-600 sm:text-lg">
-									Load saved notifications from the backend, inspect payloads,
-									and verify that the email + database flow is working end to
-									end.
-								</p>
-							</div>
-							<div className="grid gap-3 sm:grid-cols-3">
-								<Card className="border-gray-200 bg-white">
-									<CardContent className="flex items-center gap-3 px-5 py-4">
-										<div className="rounded-2xl bg-cyan-50 p-3 text-cyan-600">
-											<Bell className="size-5" />
-										</div>
-										<div>
-											<p className="text-2xl font-semibold">{stats.total}</p>
-											<p className="text-sm text-gray-500">Total alerts</p>
-										</div>
-									</CardContent>
-								</Card>
-								<Card className="border-gray-200 bg-white">
-									<CardContent className="flex items-center gap-3 px-5 py-4">
-										<div className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">
-											<Database className="size-5" />
-										</div>
-										<div>
-											<p className="text-2xl font-semibold">
-												{stats.emailCount}
-											</p>
-											<p className="text-sm text-gray-500">Email alerts</p>
-										</div>
-									</CardContent>
-								</Card>
-								<Card className="border-gray-200 bg-white">
-									<CardContent className="flex items-center gap-3 px-5 py-4">
-										<div className="rounded-2xl bg-amber-50 p-3 text-amber-600">
-											<AlertTriangle className="size-5" />
-										</div>
-										<div>
-											<p className="text-2xl font-semibold">
-												{stats.highRiskCount}
-											</p>
-											<p className="text-sm text-gray-500">High-risk alerts</p>
-										</div>
-									</CardContent>
-								</Card>
-							</div>
-						</div>
+		<div className="space-y-6">
+			<div className="flex items-start justify-between mb-6">
+				<div>
+					<h1 className="text-3xl font-bold mb-2">Notifications</h1>
+					<p className="text-gray-500 text-sm">
+						{loading
+							? "Loading notifications…"
+							: `${stats.total} notification${stats.total === 1 ? "" : "s"}${tenantId ? ` for tenant ${tenantId}` : ""}`}
+					</p>
+				</div>
+				<Button
+					type="button"
+					onClick={() => void loadNotifications()}
+					disabled={loading || !tenantId}
+					className="bg-blue-600 hover:bg-blue-700 text-white px-6 font-semibold uppercase text-sm flex items-center gap-2"
+				>
+					{loading ? (
+						<Loader2 className="w-4 h-4 animate-spin" />
+					) : (
+						<RefreshCcw className="w-4 h-4" />
+					)}
+					REFRESH
+				</Button>
+			</div>
 
-						<Card className="border-gray-200 bg-white shadow-sm">
-							<CardHeader>
-								<CardTitle className="text-xl text-gray-900">
-									Load alerts
-								</CardTitle>
-								<CardDescription className="text-gray-500">
-									Use a tenant ID and limit to query the notifications API.
-								</CardDescription>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<form
-									className="grid gap-3"
-									onSubmit={(event) => {
-										event.preventDefault();
-										void loadNotifications(tenantId, limit);
-									}}
-								>
-									<label className="grid gap-2 text-sm text-gray-700">
-										Tenant ID
-										<div className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 focus-within:border-emerald-400">
-											<Search className="size-4 text-gray-400" />
-											<input
-												className="w-full bg-transparent text-gray-900 outline-none placeholder:text-gray-400"
-												name="tenantId"
-												placeholder="factory1"
-												value={tenantId}
-												onChange={(event) => setTenantId(event.target.value)}
-											/>
-										</div>
-									</label>
-
-									<label className="grid gap-2 text-sm text-gray-700">
-										Limit
-										<input
-											className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none placeholder:text-gray-400 focus:border-emerald-400"
-											name="limit"
-											type="number"
-											min="1"
-											max="100"
-											value={limit}
-											onChange={(event) => setLimit(event.target.value)}
-										/>
-									</label>
-
-									<div className="flex flex-wrap gap-3 pt-2">
-										<Button
-											type="submit"
-											className="bg-emerald-500 text-white hover:bg-emerald-400"
-										>
-											<RefreshCcw className="size-4" />
-											{loading ? "Loading..." : "Refresh alerts"}
-										</Button>
-										<Button
-											type="button"
-											variant="outline"
-											className="border-gray-200 text-gray-700 hover:bg-gray-50"
-											onClick={() => {
-												setTenantId(DEFAULT_TENANT_ID);
-												setLimit("10");
-												void loadNotifications(DEFAULT_TENANT_ID, "10");
-											}}
-										>
-											Reset to sample
-										</Button>
-									</div>
-								</form>
-
-								{error ? (
-									<div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-										{error}
-									</div>
-								) : null}
-
-								<div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-									<div className="flex items-center gap-2">
-										<Clock3 className="size-4" />
-										<span>
-											{lastUpdated
-												? `Last updated ${formatDate(lastUpdated)}`
-												: "No data loaded yet"}
-										</span>
-									</div>
-									<div className="flex items-center gap-4">
-										<span className="text-gray-400">API: {API_BASE_URL}</span>
-										<div className="flex items-center gap-1">
-											{wsConnected ? (
-												<>
-													<Wifi className="size-4 text-emerald-500" />
-													<span className="text-emerald-600">Live</span>
-												</>
-											) : (
-												<>
-													<WifiOff className="size-4 text-gray-400" />
-													<span className="text-gray-500">Offline</span>
-												</>
-											)}
-										</div>
-									</div>
+			<div className="grid grid-cols-3 gap-4">
+				{statCards.map((stat) => {
+					const Icon = stat.icon;
+					return (
+						<Card key={stat.label} className="bg-white border-gray-200 p-6">
+							<div className="flex justify-between items-start mb-4">
+								<div className="text-xs text-gray-500 font-semibold uppercase">
+									{stat.label}
 								</div>
-							</CardContent>
+								<Icon className={`w-4 h-4 ${stat.color}`} />
+							</div>
+							<div className={`text-2xl font-bold ${stat.color}`}>
+								{loading ? <Skeleton className="h-7 w-12" /> : stat.value}
+							</div>
 						</Card>
+					);
+				})}
+			</div>
+
+			<Card className="bg-white border-gray-200 p-6">
+				<div className="flex justify-between items-center mb-6">
+					<h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+						Notification Log
+					</h2>
+					<div className="flex items-center gap-2 text-sm text-gray-500">
+						<label
+							htmlFor="limit-select"
+							className="text-xs font-semibold uppercase text-gray-400"
+						>
+							Limit
+						</label>
+						<select
+							id="limit-select"
+							value={limit}
+							onChange={(e) => setLimit(Number(e.target.value))}
+							className="border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+						>
+							{[10, 20, 50, 100].map((n) => (
+								<option key={n} value={n}>
+									{n}
+								</option>
+							))}
+						</select>
 					</div>
-				</section>
+				</div>
 
-				<section className="grid gap-4">
-					{notifications.length === 0 && !loading ? (
-						<Card className="border-gray-200 bg-white">
-							<CardContent className="px-6 py-10 text-center text-gray-500">
-								No alerts found for this tenant. Try a different tenant ID or
-								send a new Kafka event.
-							</CardContent>
-						</Card>
-					) : null}
+				{error && (
+					<div className="flex items-center gap-2 text-red-500 text-sm mb-4">
+						<XCircle className="w-4 h-4 flex-shrink-0" />
+						{error}
+					</div>
+				)}
 
-					<div className="grid gap-4 lg:grid-cols-2">
-						{notifications.map((notification) => {
-							const probability = getFailureProbability(notification.payload);
-							const isEmail = notification.type === "email";
-							const isPush = notification.type === "push";
+				{!tenantId && !loading && (
+					<p className="text-gray-400 text-sm text-center py-8">
+						No tenant ID found in session. Ensure Keycloak is configured with a{" "}
+						<code className="text-xs bg-gray-100 px-1 rounded">tenant_id</code>{" "}
+						claim.
+					</p>
+				)}
 
-							return (
-								<Card
-									key={notification.id}
-									className="border-gray-200 bg-white transition-transform duration-200 hover:-translate-y-1 hover:border-emerald-300 hover:shadow-md"
-								>
-									<CardHeader>
-										<div className="flex items-center justify-between gap-3">
-											<div>
-												<CardTitle className="text-lg text-gray-900">
-													Notification #{notification.id}
-												</CardTitle>
-												<CardDescription className="text-gray-500">
-													Tenant {notification.tenant_id} •{" "}
-													{formatDate(notification.created_at)}
-												</CardDescription>
-											</div>
-											<span
-												className={`rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide ${
-													isEmail
-														? "bg-cyan-50 text-cyan-700"
-														: isPush
-															? "bg-emerald-50 text-emerald-700"
-															: "bg-gray-100 text-gray-600"
-												}`}
+				{tenantId && (
+					<div className="overflow-x-auto">
+						<table className="w-full">
+							<thead>
+								<tr className="border-b border-gray-200">
+									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
+										ID
+									</th>
+									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
+										Tenant
+									</th>
+									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
+										Type
+									</th>
+									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
+										Summary
+									</th>
+									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
+										Risk
+									</th>
+									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
+										Created At
+									</th>
+								</tr>
+							</thead>
+							<tbody>
+								{loading &&
+									["s1", "s2", "s3", "s4", "s5"].map((sk) => (
+										<tr key={sk} className="border-b border-gray-100">
+											{["c1", "c2", "c3", "c4", "c5", "c6"].map((col) => (
+												<td key={col} className="py-4 px-4">
+													<Skeleton className="h-4 w-full" />
+												</td>
+											))}
+										</tr>
+									))}
+
+								{!loading && notifications.length === 0 && (
+									<tr>
+										<td
+											colSpan={6}
+											className="py-10 text-center text-gray-400 text-sm"
+										>
+											No notifications found for this tenant.
+										</td>
+									</tr>
+								)}
+
+								{!loading &&
+									notifications.map((n) => {
+										const probability = getFailureProbability(n.payload);
+										const isHighRisk =
+											probability !== null && probability >= 0.8;
+
+										return (
+											<tr
+												key={n.id}
+												className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
 											>
-												{notification.type}
-											</span>
-										</div>
-									</CardHeader>
-									<CardContent className="space-y-4">
-										<p className="text-sm leading-6 text-gray-700">
-											{summarizePayload(notification.payload)}
-										</p>
-
-										<div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-											<pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-6">
-												{JSON.stringify(notification.payload, null, 2)}
-											</pre>
-										</div>
-
-										{probability !== null ? (
-											<div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-sm text-amber-700">
-												<AlertTriangle className="size-4" />
-												Failure probability: {Math.round(probability * 100)}%
-											</div>
-										) : null}
-									</CardContent>
-								</Card>
-							);
-						})}
+												<td className="py-4 px-4">
+													<span className="text-sm font-semibold text-gray-800">
+														#{n.id}
+													</span>
+												</td>
+												<td className="py-4 px-4 text-sm text-gray-600">
+													{n.tenant_id}
+												</td>
+												<td className="py-4 px-4">
+													<span
+														className={`text-xs font-semibold px-2 py-1 rounded uppercase ${
+															n.type === "email"
+																? "bg-blue-50 text-blue-600"
+																: n.type === "push"
+																	? "bg-green-50 text-green-600"
+																	: "bg-gray-100 text-gray-600"
+														}`}
+													>
+														{n.type}
+													</span>
+												</td>
+												<td className="py-4 px-4 text-sm text-gray-600 max-w-xs truncate">
+													{summarizePayload(n.payload)}
+												</td>
+												<td className="py-4 px-4">
+													{probability !== null ? (
+														<div className="flex items-center gap-1">
+															<AlertTriangle
+																className={`w-3 h-3 ${isHighRisk ? "text-red-500" : "text-yellow-500"}`}
+															/>
+															<span
+																className={`text-xs font-semibold ${isHighRisk ? "text-red-500" : "text-yellow-600"}`}
+															>
+																{Math.round(probability * 100)}%
+															</span>
+														</div>
+													) : (
+														<span className="text-xs text-gray-300">—</span>
+													)}
+												</td>
+												<td className="py-4 px-4 text-sm text-gray-600">
+													{formatDate(n.created_at)}
+												</td>
+											</tr>
+										);
+									})}
+							</tbody>
+						</table>
 					</div>
-				</section>
-			</main>
+				)}
+			</Card>
 		</div>
 	);
 }

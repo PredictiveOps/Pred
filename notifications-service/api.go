@@ -130,7 +130,7 @@ func healthHandler(gdb *gorm.DB) http.HandlerFunc {
 
 func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/notifications", notificationsHandler(gdb))
+	mux.HandleFunc("/list", notificationsHandler(gdb))
 	mux.HandleFunc("/ws", wsHandler(hub))
 	mux.HandleFunc("/health", healthHandler(gdb))
 
