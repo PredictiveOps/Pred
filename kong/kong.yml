@@ -319,15 +319,6 @@ plugins:
       allowed_payload_size: 10
 
   - name: prometheus
-    config:
-      metrics:
-        - upstream_health
-        - latency
-        - status_count
-        - request_count
-        - request_size
-        - response_size
-        - upstream_latency
 
 consumers:
   - username: keycloak-consumer

@@ -269,10 +269,10 @@ services:
     build:
       context: ./event-processing-service
     ports:
-      - "8001:8001"
+      - "8082:8082"
     environment:
       <<: *no-proxy
-      HTTP_PORT: 8080
+      HTTP_PORT: 8082
       MQTT_BROKER: tcp://mosquitto:1883
       MQTT_CLIENT_ID: ingestion-service
       MQTT_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
@@ -296,8 +296,6 @@ services:
   notifications-service:
     build:
       context: ./notifications-service
-    ports:
-      - "8082:8080"
     environment:
       <<: *no-proxy
       PORT: 8083
