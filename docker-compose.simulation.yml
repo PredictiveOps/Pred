@@ -14,7 +14,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
-      POSTGRES_MULTIPLE_DATABASES: ingestion_sim,events_sim,notifications_sim,keycloak_sim
+      POSTGRES_MULTIPLE_DATABASES: ingestion_sim,events_sim,notifications_sim,keycloak_sim,predictions_sim
     volumes:
       - ./postgres/init:/docker-entrypoint-initdb.d
       - postgres_sim_data:/var/lib/postgresql
@@ -44,6 +44,21 @@ services:
       timeout: 10s
       retries: 10
       start_period: 30s
+
+  kafka-init:
+    image: apache/kafka:4.2.0
+    environment:
+      <<: *no-proxy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic sensor_data --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic ml-features --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic notifications --partitions 1 --replication-factor 1
+    depends_on:
+      kafka:
+        condition: service_healthy
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -94,7 +109,7 @@ services:
       context: ./ingestion-service
     environment:
       <<: *no-proxy
-      PORT: "8003"
+      PORT: "8081"
       DATABASE_URL: postgres://postgres:postgres@postgres-sim:5432/ingestion_sim
       KAFKA_BROKERS: kafka:29092
       KAFKA_TOPIC: sensor_data
@@ -123,7 +138,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "no_proxy=localhost wget -qO- http://localhost:8003/health"]
+      test: ["CMD-SHELL", "no_proxy=localhost wget -qO- http://localhost:8081/health"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -139,7 +154,7 @@ services:
       KAFKA_BROKERS: kafka:29092
       KAFKA_TOPIC: sensor_data
       KAFKA_GROUP_ID: event-processing-service-sim
-      HTTP_PORT: "8081"
+      HTTP_PORT: "8082"
       ML_FEATURES_TOPIC: ml-features
       WINDOW_DURATION_SECONDS: "5"
     depends_on:
@@ -147,6 +162,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     develop:
       watch:
@@ -158,7 +175,7 @@ services:
       context: ./ai-ml
     environment:
       <<: *no-proxy
-      DATABASE_URL: postgresql://postgres:postgres@postgres-sim:5432/events_sim
+      DATABASE_URL: postgresql://postgres:postgres@postgres-sim:5432/predictions_sim
       KAFKA_BROKERS: kafka:29092
       ML_FEATURES_TOPIC: ml-features
       ML_KAFKA_GROUP_ID: ml-service-sim
@@ -167,6 +184,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   notifications-service:
@@ -184,6 +203,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   keycloak:
@@ -268,7 +289,7 @@ services:
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
     ports:
       - "8000:8000"
-      - "8002:8001"
+      - "8001:8001"
     depends_on:
       - ingestion-service
       - event-processing-service
@@ -304,7 +325,7 @@ services:
       context: ./device-simulation
     environment:
       <<: *no-proxy
-      INGESTION_HTTP_URL: http://ingestion-service:8003
+      INGESTION_HTTP_URL: http://ingestion-service:8081
       MQTT_BROKER_HOST: mosquitto
       MQTT_BROKER_PORT: "8883"
       MQTT_DEVICE_USERNAME: ${MQTT_DEVICE_USERNAME:-pred-device}

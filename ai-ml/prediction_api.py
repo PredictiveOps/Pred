@@ -831,5 +831,5 @@ def get_active_model(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("ML_PORT", "8084")), reload=True)
 

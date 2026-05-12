@@ -178,7 +178,7 @@ func TestKafkaProducer_IngestionHandler(t *testing.T) {
 	// Act - simulate the data message handling path
 	// We need to mock the verification process since we can't easily mock the crypto
 	// Instead, we'll test the Kafka producer path directly by calling prepareKafkaPayload
-	kafkaPayload := prepareKafkaPayload(deviceID, mqttPayload.Timestamp, sensorData)
+	kafkaPayload := prepareKafkaPayload(deviceID, "default-tenant", mqttPayload.Timestamp, sensorData)
 	kafkaJSON, err := json.Marshal(kafkaPayload)
 	if err != nil {
 		t.Fatalf("Failed to marshal kafka payload: %v", err)
@@ -217,6 +217,10 @@ func TestKafkaProducer_IngestionHandler(t *testing.T) {
 	// Verify all KafkaPayload fields
 	if receivedPayload.DeviceID != deviceID {
 		t.Errorf("Expected DeviceID %d, got %d", deviceID, receivedPayload.DeviceID)
+	}
+
+	if receivedPayload.TenantID != "default-tenant" {
+		t.Errorf("Expected TenantID %s, got %s", "default-tenant", receivedPayload.TenantID)
 	}
 
 	if receivedPayload.Timestamp != mqttPayload.Timestamp {

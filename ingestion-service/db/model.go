@@ -54,6 +54,7 @@ type MQTTPayload struct {
 
 type KafkaPayload struct {
 	DeviceID  uint    `json:"device_id"`
+	TenantID  string  `json:"tenant_id"`
 	Timestamp int64   `json:"timestamp"`
 	Mode      string  `json:"mode"`
 	VRMS      float64 `json:"v_rms"`
