@@ -27,3 +27,8 @@ scrape_configs:
     metrics_path: "/metrics"
     static_configs:
       - targets: ["kong:8001"]
+
+  - job_name: "ai-ml"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["ml-service:8084"]

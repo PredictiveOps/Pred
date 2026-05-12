@@ -19,6 +19,7 @@ from typing import Any, Optional
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -61,6 +62,8 @@ app = FastAPI(
     description="Human-in-the-loop ML pipeline for predictive maintenance",
     version="1.0.0",
 )
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 # ============================================================================
