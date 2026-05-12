@@ -61,7 +61,7 @@ upstreams:
 services:
   - name: event-processing
     host: event-processing-upstream
-    path: /tenants/default/events
+    path: /events
     routes:
       - name: events-route
         paths:

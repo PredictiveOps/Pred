@@ -268,21 +268,16 @@ services:
     build: ./event-processing-service
     environment:
       <<: *no-proxy
-      DATABASE_URL: ${EVENTS_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/events}
-      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
-      KAFKA_TOPIC: ${EVENTS_KAFKA_TOPIC:-sensor_data}
-      KAFKA_GROUP_ID: ${EVENTS_KAFKA_GROUP_ID:-event-processing-service}
-      HTTP_PORT: "8082"
-      ML_FEATURES_TOPIC: ${ML_FEATURES_TOPIC:-ml-features}
-      WINDOW_DURATION_SECONDS: ${WINDOW_DURATION_SECONDS:-5}
-      PORT: 8082
+      HTTP_PORT: 8080
       MQTT_BROKER: tcp://mosquitto:1883
       MQTT_CLIENT_ID: ingestion-service
       MQTT_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
       MQTT_PASSWORD: ${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
       MQTT_TOPIC: sensors/data
-    ports:
-      - "8082:8082"
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-notifications}
+      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-notifications-service}
+      DATABASE_URL: ${NOTIFICATIONS_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/events}
     depends_on:
       postgres:
         condition: service_healthy
