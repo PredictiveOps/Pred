@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-/opt/keycloak/bin/kc.sh start-dev &
+/opt/keycloak/bin/kc.sh start-dev --metrics-enabled=true &
 KC_PID=$!
 
 trap 'kill -TERM "$KC_PID" 2>/dev/null || true; wait "$KC_PID"' TERM INT
