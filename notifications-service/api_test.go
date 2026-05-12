@@ -39,7 +39,8 @@ func TestNotificationsHandler_ValidTenant(t *testing.T) {
 	})
 
 	handler := notificationsHandler(gdb)
-	req := httptest.NewRequest(http.MethodGet, "/notifications?tenant_id="+tenantID, nil)
+	req := httptest.NewRequest(http.MethodGet, "/notifications?", nil)
+	req.Header.Set("X-Tenant-Id", tenantID)
 	w := httptest.NewRecorder()
 	handler(w, req)
 
@@ -81,7 +82,8 @@ func TestNotificationsHandler_LimitClamped(t *testing.T) {
 	handler := notificationsHandler(gdb)
 
 	// limit=200 should be clamped to 100; all 5 results should still come back
-	req := httptest.NewRequest(http.MethodGet, "/notifications?tenant_id="+tenantID+"&limit=200", nil)
+	req := httptest.NewRequest(http.MethodGet, "/notifications?limit=200", nil)
+	req.Header.Set("X-Tenant-Id", tenantID)
 	w := httptest.NewRecorder()
 	handler(w, req)
 
