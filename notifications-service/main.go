@@ -20,19 +20,16 @@ import (
 	"notifications-service/db"
 )
 
-// AlertEvent is the message schema consumed from Kafka.
-// For push, Recipients carry user_ids resolved to device tokens via the device_tokens table.
-// For email, Recipients carry user_ids and the email address to deliver to.
-type AlertEvent struct {
-	TenantID   string          `json:"tenant_id"`
-	Type       string          `json:"type"` // "email" or "push"
-	Payload    json.RawMessage `json:"payload"`
-	Recipients []Recipient     `json:"recipients"`
+// KeycloakRecipientProvider interface for getting recipients from Keycloak
+type KeycloakRecipientProvider interface {
+	GetTenantRecipients(ctx context.Context, tenantID string) ([]Recipient, error)
 }
 
-type Recipient struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"` // required for type="email"
+// AlertEvent is the message schema consumed from Kafka.
+type AlertEvent struct {
+	TenantID string          `json:"tenant_id"`
+	Type     string          `json:"type"` // "email" or "push"
+	Payload  json.RawMessage `json:"payload"`
 }
 
 func main() {
@@ -48,6 +45,12 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+
+	kcURL := getEnv("KEYCLOAK_URL", "http://localhost:8080")
+	kcRealm := getEnv("KEYCLOAK_REALM", "pred")
+	kcClientID := getEnv("KEYCLOAK_CLIENT_ID", "notifications-service")
+	kcClientSecret := getEnv("KEYCLOAK_CLIENT_SECRET", "dev-notifications-service-secret")
+	kc := NewKeycloakClient(kcURL, kcRealm, kcClientID, kcClientSecret)
 
 	gdb, err := db.Open(ctx, dbURL)
 	if err != nil {
@@ -83,13 +86,13 @@ func main() {
 			continue
 		}
 
-		if err := handleMessage(ctx, gdb, hub, msg); err != nil {
+		if err := handleMessage(ctx, gdb, hub, kc, msg); err != nil {
 			log.Printf("handle error (offset %d): %v", msg.Offset, err)
 		}
 	}
 }
 
-func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, msg kafka.Message) error {
+func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, kc KeycloakRecipientProvider, msg kafka.Message) error {
 	var event AlertEvent
 	cleanValue := normalizeKafkaMessage(msg.Value)
 	if err := json.Unmarshal(cleanValue, &event); err != nil {
@@ -99,11 +102,20 @@ func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, msg kafka.Messag
 	if event.TenantID == "" {
 		return fmt.Errorf("missing tenant_id")
 	}
-	if len(event.Recipients) == 0 {
-		return fmt.Errorf("missing recipients")
-	}
 	if event.Type != "push" && event.Type != "email" {
 		return fmt.Errorf("unknown notification type %q", event.Type)
+	}
+
+	if kc == nil {
+		return fmt.Errorf("keycloak client not configured")
+	}
+
+	recipients, err := kc.GetTenantRecipients(ctx, event.TenantID)
+	if err != nil {
+		return fmt.Errorf("fetch keycloak recipients: %w", err)
+	}
+	if len(recipients) == 0 {
+		return fmt.Errorf("no users found in keycloak for tenant %s", event.TenantID)
 	}
 
 	var payloadMap map[string]interface{}
@@ -137,17 +149,17 @@ func handleMessage(ctx context.Context, gdb *gorm.DB, hub *Hub, msg kafka.Messag
 
 	switch event.Type {
 	case "push":
-		return fanOutPush(ctx, gdb, notifID, event)
+		return fanOutPush(ctx, gdb, notifID, event, recipients)
 	case "email":
-		return fanOutEmail(ctx, gdb, notifID, event)
+		return fanOutEmail(ctx, gdb, notifID, event, recipients)
 	}
 
 	return nil
 }
 
-func fanOutPush(ctx context.Context, gdb *gorm.DB, notifID int64, event AlertEvent) error {
-	userIDs := make([]string, len(event.Recipients))
-	for i, r := range event.Recipients {
+func fanOutPush(ctx context.Context, gdb *gorm.DB, notifID int64, event AlertEvent, recipients []Recipient) error {
+	userIDs := make([]string, len(recipients))
+	for i, r := range recipients {
 		userIDs[i] = r.UserID
 	}
 
@@ -176,8 +188,8 @@ func fanOutPush(ctx context.Context, gdb *gorm.DB, notifID int64, event AlertEve
 	return nil
 }
 
-func fanOutEmail(ctx context.Context, gdb *gorm.DB, notifID int64, event AlertEvent) error {
-	for _, r := range event.Recipients {
+func fanOutEmail(ctx context.Context, gdb *gorm.DB, notifID int64, event AlertEvent, recipients []Recipient) error {
+	for _, r := range recipients {
 		if r.Email == "" {
 			log.Printf("skipping recipient with empty email (user %s)", r.UserID)
 			continue

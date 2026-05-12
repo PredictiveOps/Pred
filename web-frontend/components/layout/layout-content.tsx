@@ -34,6 +34,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
 		{ path: "/assets", label: "Assets", icon: Box },
 		{ path: "/predictions", label: "Predictions", icon: Lightbulb },
 		{ path: "/raw-events", label: "Raw Events", icon: List },
+		{ path: "/notifications", label: "Notifications", icon: Bell },
 	];
 
 	return (

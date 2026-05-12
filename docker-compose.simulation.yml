@@ -198,6 +198,11 @@ services:
       KAFKA_TOPIC: notifications
       KAFKA_GROUP_ID: notifications-service-sim
       EMAIL_PROVIDER: stub
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: pred
+      KEYCLOAK_CLIENT_ID: notifications-service
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-notifications-service-secret}
+      FAILURE_THRESHOLD: 0.1
     depends_on:
       postgres-sim:
         condition: service_healthy
@@ -205,6 +210,14 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "no_proxy=localhost wget -qO- http://localhost:8083/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     restart: unless-stopped
 
   keycloak:
@@ -238,6 +251,12 @@ services:
       - ./keycloak/entrypoint.sh:/opt/keycloak-config/entrypoint.sh:ro
       - ./keycloak/configure.sh:/opt/keycloak-config/configure.sh:ro
     restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/keycloak-configured || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
 
   web-frontend:
     build:
@@ -291,9 +310,14 @@ services:
       - "8000:8000"
       - "8001:8001"
     depends_on:
-      - ingestion-service
-      - event-processing-service
-      - keycloak
+      ingestion-service:
+        condition: service_healthy
+      event-processing-service:
+        condition: service_started
+      notifications-service:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s

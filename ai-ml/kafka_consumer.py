@@ -43,7 +43,6 @@ def enqueue_notification(
     predicted_status: str,
     device_id: str,
     asset_id: str,
-    recipients: list[dict[str, str]],
 ) -> None:
     alert_event = {
         "tenant_id": tenant_id,
@@ -54,14 +53,12 @@ def enqueue_notification(
             "device_id": device_id,
             "asset_id": asset_id,
         },
-        "recipients": recipients,
     }
     logging.info(
-        "publishing alert topic=%s tenant=%s device=%s recipients=%d",
+        "publishing alert topic=%s tenant=%s device=%s",
         topic,
         tenant_id,
         device_id,
-        len(recipients),
     )
     future = producer.send(topic, value=alert_event)
     producer.flush()
@@ -82,15 +79,13 @@ def handle_payload(payload: dict[str, Any], db_engine, producer: KafkaProducer, 
     device_id = payload.get("device_id") or "unknown-device"
     asset_id = payload.get("asset_id") or device_id
     features = payload.get("features") or {}
-    recipients: list[dict[str, str]] = payload.get("recipients") or []
 
     logging.info(
-        "received event tenant=%s device=%s asset=%s features=%d recipients=%d",
+        "received event tenant=%s device=%s asset=%s features=%d",
         tenant_id,
         device_id,
         asset_id,
         len(features),
-        len(recipients),
     )
 
     result = PREDICTOR.predict(
@@ -131,10 +126,6 @@ def handle_payload(payload: dict[str, Any], db_engine, producer: KafkaProducer, 
         logging.info("skipping notification status=%s device=%s", predicted_status, device_id)
         return
 
-    if not recipients:
-        logging.warning("no recipients in payload, skipping notification device=%s tenant=%s", device_id, tenant_id)
-        return
-
     enqueue_notification(
         producer=producer,
         topic=notifications_topic,
@@ -144,7 +135,6 @@ def handle_payload(payload: dict[str, Any], db_engine, producer: KafkaProducer, 
         predicted_status=predicted_status,
         device_id=device_id,
         asset_id=asset_id,
-        recipients=recipients,
     )
 
 
