@@ -318,6 +318,8 @@ plugins:
     config:
       allowed_payload_size: 10
 
+  - name: prometheus
+
 consumers:
   - username: keycloak-consumer
 

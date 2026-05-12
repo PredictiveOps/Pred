@@ -139,3 +139,11 @@ All services must have a `README.md` file with the following sections:
 - How to run it
 
 Service READMEs must not document database internals (tables, columns, indexes). That level of detail belongs in the code (models, migrations).
+
+## Prometheus Metrics
+
+Both Go services (`notifications-service` and `event-processing-service`) expose Prometheus metrics at `/metrics` using `github.com/prometheus/client_golang`. All standard Go runtime metrics are included (process CPU, memory, goroutines, etc.).
+
+**Notifications service**: The `/metrics` endpoint is already added to the HTTP server (see `api.go`). No custom application metrics are currently instrumented — add them as needed using the `prometheus/promhttp` package.
+
+**Event processing service**: The `/metrics` endpoint is already added to the router (see `api/metrics.go` and `api/router.go`). No custom application metrics are currently instrumented — add them as needed using the `prometheus` package.

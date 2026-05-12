@@ -19,14 +19,14 @@ Every event is scoped to a tenant. Tenant context is carried in the Kafka messag
 
 ## Configuration
 
-| Variable         | Default                                       | Description                                                                 |
-| ---------------- | --------------------------------------------- | --------------------------------------------------------------------------- |
-| `KAFKA_BROKERS`  | `localhost:9092`                              | Comma-separated list of Kafka bootstrap brokers                             |
-| `KAFKA_TOPIC`    | `events`                                      | Topic the consumer subscribes to                                            |
-| `KAFKA_GROUP_ID` | `event-processing-service`                    | Consumer group ID — instances sharing this ID split partitions between them |
-| `DATABASE_URL`   | `postgres://localhost:5432/events`            | PostgreSQL connection string                                                |
-| `HTTP_PORT`      | `8080`                                        | Port the HTTP API listens on                                                |
-| `ML_FEATURES_TOPIC` | `ml-features`                              | Kafka topic where aggregated ML feature payloads are published              |
+| Variable            | Default                            | Description                                                                 |
+| ------------------- | ---------------------------------- | --------------------------------------------------------------------------- |
+| `KAFKA_BROKERS`     | `localhost:9092`                   | Comma-separated list of Kafka bootstrap brokers                             |
+| `KAFKA_TOPIC`       | `events`                           | Topic the consumer subscribes to                                            |
+| `KAFKA_GROUP_ID`    | `event-processing-service`         | Consumer group ID — instances sharing this ID split partitions between them |
+| `DATABASE_URL`      | `postgres://localhost:5432/events` | PostgreSQL connection string                                                |
+| `HTTP_PORT`         | `8080`                             | Port the HTTP API listens on                                                |
+| `ML_FEATURES_TOPIC` | `ml-features`                      | Kafka topic where aggregated ML feature payloads are published              |
 
 ## Running
 
@@ -46,3 +46,20 @@ make test-down  # tears down the test container and volume
 ```
 
 The test compose runs alongside the dev `docker-compose.yml` without conflict.
+
+## Observability
+
+### Prometheus Metrics
+
+The service exposes Prometheus metrics at `/metrics` (default: `http://localhost:8001/metrics`). Metrics include:
+
+- `http_requests_total` — total HTTP requests by method, path, and status code
+- `http_request_duration_seconds` — HTTP request latency histogram (in seconds)
+- `http_connections_open` — currently open HTTP connections
+- `process_cpu_seconds_total` — total CPU time used by the process
+- `process_resident_memory_bytes` — resident memory usage (bytes)
+- `go_goroutines` — number of active goroutines
+
+**Scraping**: Prometheus is configured to scrape metrics from `event-processing-service:8001/metrics` every 15 seconds. See [observability/prometheus/prometheus.yml](../observability/prometheus/prometheus.yml).
+
+**Accessing Prometheus UI**: When running `docker compose up`, Prometheus is available at `http://localhost:9090`.

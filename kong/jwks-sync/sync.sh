@@ -19,15 +19,15 @@ fetch_pubkey() {
   local jwks cert_b64
   jwks=$(curl -fsS --max-time 10 "$KEYCLOAK_JWKS_URL") || return 1
 
-  cert_b64=$(printf '%s' "$jwks" | python3 -c "
+  cert_b64=$(printf '%s' "$jwks" | python3 -c '
 import sys, json
 data = json.load(sys.stdin)
-for k in data.get('keys', []):
-    if k.get('alg') == 'RS256' and k.get('x5c'):
-        print(k['x5c'][0])
+for k in data.get("keys", []):
+    if k.get("alg") == "RS256" and k.get("x5c"):
+        print(k["x5c"][0])
         sys.exit(0)
 sys.exit(1)
-") || return 1
+') || return 1
 
   printf -- "-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----\n" "$cert_b64" \
     | openssl x509 -pubkey -noout 2>/dev/null

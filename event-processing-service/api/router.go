@@ -19,6 +19,7 @@ type route struct {
 
 var routes = []route{
 	{http.MethodGet, "/health", health},
+	{http.MethodGet, "/metrics", metricsHandler},
 	{http.MethodGet, "/events", listAllEvents},
 	{http.MethodGet, "/tenants/:tenantID/events", listEvents},
 }

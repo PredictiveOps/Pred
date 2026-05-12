@@ -131,6 +131,8 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - pred-network
     restart: unless-stopped
 
   ingestion-service:
@@ -200,6 +202,7 @@ services:
       TEST_USER_PASSWORD: ${KEYCLOAK_TEST_USER_PASSWORD:-Test123!}
     ports:
       - "8080:8080"
+      - "9000:9000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -265,10 +268,13 @@ services:
       retries: 5
 
   event-processing-service:
-    build: ./event-processing-service
+    build:
+      context: ./event-processing-service
+    ports:
+      - "8082:8082"
     environment:
       <<: *no-proxy
-      HTTP_PORT: 8080
+      HTTP_PORT: 8082
       MQTT_BROKER: tcp://mosquitto:1883
       MQTT_CLIENT_ID: ingestion-service
       MQTT_USERNAME: ${MQTT_INGESTION_USERNAME:-pred-ingestion}
@@ -367,6 +373,7 @@ services:
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_PLUGINS: bundled,prometheus
     ports:
       - "8000:8000"
       - "8001:8001"

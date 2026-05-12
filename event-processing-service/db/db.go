@@ -12,7 +12,7 @@ func Open(ctx context.Context, url string) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// AutoMigrate all models for predictions pipeline
 	if err := gdb.WithContext(ctx).AutoMigrate(
 		&Event{},

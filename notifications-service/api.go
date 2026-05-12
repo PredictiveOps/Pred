@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gorm.io/gorm"
 
 	"notifications-service/db"
@@ -132,6 +133,7 @@ func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/list", notificationsHandler(gdb))
 	mux.HandleFunc("/ws", wsHandler(hub))
+	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/health", healthHandler(gdb))
 
 	port := os.Getenv("PORT")

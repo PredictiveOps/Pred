@@ -23,6 +23,5 @@ ENV MQTT_TOPIC="devices/+/data"
 ENV MQTT_USERNAME=""
 ENV MQTT_PASSWORD=""
 
-
 # Run the service
 CMD ["./ingestion-service"]
