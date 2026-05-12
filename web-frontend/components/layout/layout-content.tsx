@@ -8,6 +8,7 @@ import {
 	Grid3x3,
 	HelpCircle,
 	Lightbulb,
+	List,
 	Settings,
 } from "lucide-react";
 import Link from "next/link";
@@ -32,6 +33,8 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
 		{ path: "/alerts", label: "Alerts", icon: AlertTriangle },
 		{ path: "/assets", label: "Assets", icon: Box },
 		{ path: "/predictions", label: "Predictions", icon: Lightbulb },
+		{ path: "/raw-events", label: "Raw Events", icon: List },
+		{ path: "/notifications", label: "Notifications", icon: Bell },
 	];
 
 	return (
