@@ -34,7 +34,8 @@ func main() {
 	dbURL := getEnv("DATABASE_URL", "postgres://localhost:5432/events")
 	httpPort := getEnv("HTTP_PORT", "8082")
 	mlTopic := getEnv("ML_FEATURES_TOPIC", "ml-features")
-	windowSecs := getEnvInt("WINDOW_DURATION_SECONDS", 5)
+	aggregationIntervalSecs := getEnvInt("AGGREGATION_INTERVAL_SECONDS", getEnvInt("WINDOW_DURATION_SECONDS", 5))
+	aggregationBatchSize := getEnvInt("AGGREGATION_BATCH_SIZE", 500)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -54,22 +55,9 @@ func main() {
 			log.Printf("ml sink close error: %v", err)
 		}
 	}()
-	windowDuration := time.Duration(windowSecs) * time.Second
-
-	windowManager := processor.NewWindowManager(windowDuration, func(tenantID string, deviceID uint, readings []processor.SensorEvent) {
-		log.Printf("[window] flushing device=%d tenant=%q readings=%d", deviceID, tenantID, len(readings))
-		features := processor.Compute(readings)
-		payload := processor.MLRequest{
-			DeviceID: deviceID,
-			TenantID: tenantID,
-			Features: features,
-		}
-		if err := mlSink.Send(context.Background(), payload); err != nil {
-			log.Printf("[ml] enqueue error device=%d: %v", deviceID, err)
-		} else {
-			log.Printf("[ml] enqueued features device=%d tenant=%q readings=%d", deviceID, tenantID, len(readings))
-		}
-	})
+	aggregationInterval := time.Duration(aggregationIntervalSecs) * time.Second
+	aggregator := processor.NewDBAggregator(gdb, mlSink, aggregationInterval, aggregationBatchSize)
+	go aggregator.Run(ctx)
 
 	server := &http.Server{
 		Addr:    ":" + httpPort,
@@ -97,14 +85,13 @@ func main() {
 	})
 	defer reader.Close()
 
-	log.Printf("consuming topic %q from %s (group %q, window %s), publishing features to %q", topic, brokers, groupID, windowDuration, mlTopic)
+	log.Printf("consuming topic %q from %s (group %q), aggregating DB rows every %s in batches of %d, publishing features to %q", topic, brokers, groupID, aggregationInterval, aggregationBatchSize, mlTopic)
 
 	for {
 		msg, err := reader.ReadMessage(ctx)
 		if err != nil {
 			if ctx.Err() != nil {
-				log.Println("shutting down — flushing open windows")
-				windowManager.Stop()
+				log.Println("shutting down")
 				return
 			}
 			log.Printf("read error: %v", err)
@@ -112,13 +99,13 @@ func main() {
 		}
 
 		log.Printf("[kafka] received message topic=%q partition=%d offset=%d key=%q len=%d", msg.Topic, msg.Partition, msg.Offset, msg.Key, len(msg.Value))
-		if err := handleMessage(ctx, gdb, windowManager, msg); err != nil {
+		if err := handleMessage(ctx, gdb, msg); err != nil {
 			log.Printf("[kafka] handle error topic=%q partition=%d offset=%d: %v", msg.Topic, msg.Partition, msg.Offset, err)
 		}
 	}
 }
 
-func handleMessage(ctx context.Context, gdb *gorm.DB, wm *processor.WindowManager, msg kafka.Message) error {
+func handleMessage(ctx context.Context, gdb *gorm.DB, msg kafka.Message) error {
 	var event processor.SensorEvent
 	if err := json.Unmarshal(msg.Value, &event); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
@@ -130,9 +117,6 @@ func handleMessage(ctx context.Context, gdb *gorm.DB, wm *processor.WindowManage
 		return fmt.Errorf("insert event: %w", err)
 	}
 	log.Printf("[db] event stored id=%d device=%d tenant=%q", id, event.DeviceID, event.TenantID)
-
-	wm.Add(event)
-	log.Printf("[window] event added device=%d tenant=%q", event.DeviceID, event.TenantID)
 	return nil
 }
 

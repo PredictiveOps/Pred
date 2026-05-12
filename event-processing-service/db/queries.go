@@ -28,6 +28,49 @@ func InsertEvent(ctx context.Context, gdb *gorm.DB, tenantID string, payload []b
 	return e.ID, nil
 }
 
+// ProcessUnaggregatedEvents locks a batch of events that still need feature
+// aggregation, runs process while those rows are locked, and marks the batch as
+// processed when process succeeds. SKIP LOCKED lets multiple service replicas
+// share aggregation work without processing the same rows concurrently.
+func ProcessUnaggregatedEvents(ctx context.Context, gdb *gorm.DB, limit int, process func([]Event) error) error {
+	if limit <= 0 {
+		limit = 500
+	}
+
+	return gdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var events []Event
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("aggregation_processed = ?", false).
+			Order("created_at ASC").
+			Limit(limit).
+			Find(&events).Error; err != nil {
+			return err
+		}
+
+		if len(events) == 0 {
+			return nil
+		}
+
+		if err := process(events); err != nil {
+			return err
+		}
+
+		ids := make([]int64, 0, len(events))
+		for _, event := range events {
+			ids = append(ids, event.ID)
+		}
+
+		now := time.Now().UTC()
+		return tx.Model(&Event{}).
+			Where("id IN ?", ids).
+			Updates(map[string]any{
+				"aggregation_processed":    true,
+				"aggregation_processed_at": &now,
+			}).Error
+	})
+}
+
 func applyEventFilters(query *gorm.DB, filter EventFilter) *gorm.DB {
 	if filter.TenantID != "" {
 		query = query.Where("tenant_id = ?", filter.TenantID)

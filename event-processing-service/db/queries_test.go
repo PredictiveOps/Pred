@@ -44,6 +44,53 @@ func TestInsertEvent_StoresPayload(t *testing.T) {
 	if e.TenantID != "tenant-event" {
 		t.Fatalf("tenant_id = %q, want %q", e.TenantID, "tenant-event")
 	}
+	if e.AggregationProcessed {
+		t.Fatal("new event should start with aggregation_processed=false")
+	}
+	if e.AggregationProcessedAt != nil {
+		t.Fatal("new event should not have aggregation_processed_at set")
+	}
+}
+
+func TestProcessUnaggregatedEvents_MarksProcessedAfterSuccess(t *testing.T) {
+	gdb := testutil.OpenTestDB(t, Open)
+	ctx := context.Background()
+	tenantID := "tenant-aggregation-success"
+	preClean(t, gdb, &Event{}, "tenant_id = ?", tenantID)
+
+	raw, _ := json.Marshal(map[string]any{"device_id": 10, "v_rms": 0.42})
+	firstID, err := InsertEvent(ctx, gdb, tenantID, raw)
+	if err != nil {
+		t.Fatalf("insert first event: %v", err)
+	}
+	secondID, err := InsertEvent(ctx, gdb, tenantID, raw)
+	if err != nil {
+		t.Fatalf("insert second event: %v", err)
+	}
+
+	var seen []int64
+	if err := ProcessUnaggregatedEvents(ctx, gdb, 10, func(events []Event) error {
+		for _, event := range events {
+			seen = append(seen, event.ID)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("ProcessUnaggregatedEvents: %v", err)
+	}
+
+	if len(seen) != 2 {
+		t.Fatalf("processed %d events, want 2", len(seen))
+	}
+
+	var remaining int64
+	if err := gdb.Model(&Event{}).
+		Where("id IN ? AND aggregation_processed = ?", []int64{firstID, secondID}, false).
+		Count(&remaining).Error; err != nil {
+		t.Fatalf("count remaining: %v", err)
+	}
+	if remaining != 0 {
+		t.Fatalf("remaining unprocessed rows = %d, want 0", remaining)
+	}
 }
 
 func newPF(tenantID, assetID string, ts time.Time) *ProcessedFeatures {

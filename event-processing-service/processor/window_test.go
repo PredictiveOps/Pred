@@ -94,6 +94,37 @@ func TestWindowManager_TwoDevicesFlushIndependently(t *testing.T) {
 	}
 }
 
+func TestWindowManager_SameDeviceDifferentTenantsFlushIndependently(t *testing.T) {
+	rec := newRecordingFlush(4)
+	wm := NewWindowManager(100*time.Millisecond, rec.fn())
+	defer wm.Stop()
+
+	for range 3 {
+		wm.Add(makeEvent(1, "tenant-a"))
+		wm.Add(makeEvent(1, "tenant-b"))
+	}
+
+	seen := map[string]int{}
+	timeout := time.After(2 * time.Second)
+	for len(seen) < 2 {
+		select {
+		case call := <-rec.ch:
+			seen[call.tenantID] = call.count
+			if call.deviceID != 1 {
+				t.Errorf("deviceID = %d, want 1", call.deviceID)
+			}
+		case <-timeout:
+			t.Fatalf("timed out; flushed tenants: %v", seen)
+		}
+	}
+
+	for _, tenantID := range []string{"tenant-a", "tenant-b"} {
+		if seen[tenantID] != 3 {
+			t.Errorf("tenant %s flushed %d readings, want 3", tenantID, seen[tenantID])
+		}
+	}
+}
+
 // TestWindowManager_StopFlushesRemainingEvents verifies that calling Stop()
 // synchronously flushes any open windows that have not yet expired.
 func TestWindowManager_StopFlushesRemainingEvents(t *testing.T) {

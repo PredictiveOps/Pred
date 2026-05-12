@@ -1,6 +1,6 @@
 package processor
 
-// MLFeatures holds the 52 engineered features expected by the ML Service.
+// MLFeatures holds the 51 engineered features expected by the ML Service.
 // Field order matches feature_columns.json exactly.
 type MLFeatures struct {
 	// Vibration X axis — derived from resultant via equal-energy split: v_x = v_rms / √2

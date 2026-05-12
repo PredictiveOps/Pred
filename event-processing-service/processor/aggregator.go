@@ -6,7 +6,7 @@ import "math"
 // Assumes x and y are orthogonal with equal energy: v_x = v_y = v_resultant / √2.
 const axisSplitFactor = 1.0 / math.Sqrt2
 
-// Compute aggregates a window of SensorEvent readings into the 52 ML features.
+// Compute aggregates a window of SensorEvent readings into the 51 ML features.
 // readings must be non-empty; an empty slice returns a zero-value MLFeatures.
 func Compute(readings []SensorEvent) MLFeatures {
 	n := len(readings)

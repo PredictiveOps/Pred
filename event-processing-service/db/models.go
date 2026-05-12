@@ -7,10 +7,12 @@ import (
 )
 
 type Event struct {
-	ID        int64          `gorm:"primaryKey" json:"id"`
-	TenantID  string         `gorm:"not null;index:events_tenant" json:"tenant_id"`
-	Payload   datatypes.JSON `gorm:"type:jsonb;not null" json:"payload"`
-	CreatedAt time.Time      `gorm:"not null;default:now()" json:"created_at"`
+	ID                     int64          `gorm:"primaryKey" json:"id"`
+	TenantID               string         `gorm:"not null;index:events_tenant" json:"tenant_id"`
+	Payload                datatypes.JSON `gorm:"type:jsonb;not null" json:"payload"`
+	AggregationProcessed   bool           `gorm:"not null;default:false;index:events_aggregation_processed" json:"aggregation_processed"`
+	AggregationProcessedAt *time.Time     `json:"aggregation_processed_at"`
+	CreatedAt              time.Time      `gorm:"not null;default:now()" json:"created_at"`
 }
 
 // ProcessedFeatures stores time-series sensor feature data
