@@ -21,7 +21,7 @@ type ViewState = {
 	total: number;
 };
 
-function formatDate(value: string) {
+function formatDate(value: string | number) {
 	try {
 		return new Date(value).toLocaleString();
 	} catch {
@@ -29,7 +29,50 @@ function formatDate(value: string) {
 	}
 }
 
-function renderPayloadValue(value: unknown) {
+function formatColumnName(key: string) {
+	return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function isTimestampKey(key: string) {
+	return /(_at|_time|_date|timestamp)$/i.test(key);
+}
+
+function isStatusKey(key: string) {
+	return /status/i.test(key);
+}
+
+const STATUS_STYLES: Record<string, string> = {
+	normal: "bg-green-100 text-green-700",
+	ok: "bg-green-100 text-green-700",
+	warning: "bg-yellow-100 text-yellow-700",
+	warn: "bg-yellow-100 text-yellow-700",
+	critical: "bg-red-100 text-red-700",
+	error: "bg-red-100 text-red-700",
+	info: "bg-blue-100 text-blue-700",
+};
+
+function statusStyle(value: string) {
+	return STATUS_STYLES[value.toLowerCase()] ?? "bg-gray-100 text-gray-700";
+}
+
+function renderPayloadValue(key: string, value: unknown) {
+	if (value === undefined || value === null || value === "-") {
+		return <span className="text-gray-400">—</span>;
+	}
+	console.log(key, value);
+	if (isTimestampKey(key) && (typeof value === "string" || typeof value === "number")) {
+		return formatDate(value);
+	}
+	if (key.toLowerCase() === "mode" && typeof value === "string") {
+		return value.charAt(0).toUpperCase().concat(value.slice(1));
+	}
+	if (isStatusKey(key) && typeof value === "string") {
+		return (
+			<span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusStyle(value)}`}>
+				{value.toUpperCase()}
+			</span>
+		);
+	}
 	if (typeof value === "number") {
 		return value.toFixed(2);
 	}
@@ -37,10 +80,6 @@ function renderPayloadValue(value: unknown) {
 		return value;
 	}
 	return JSON.stringify(value);
-}
-
-function payloadEntries(payload: Record<string, unknown>) {
-	return Object.entries(payload).filter(([key]) => key !== "tenant_id");
 }
 
 export default function RawEventsPage() {
@@ -78,6 +117,15 @@ export default function RawEventsPage() {
 
 	const rows = useMemo(() => state.events, [state.events]);
 	const totalPages = Math.max(1, Math.ceil(state.total / DEFAULT_LIMIT));
+	const payloadKeys = useMemo(() => {
+		const keys = new Set<string>();
+		for (const event of rows) {
+			for (const key of Object.keys(event.payload ?? {})) {
+				if (key !== "tenant_id") keys.add(key);
+			}
+		}
+		return Array.from(keys);
+	}, [rows]);
 
 	return (
 		<div className="space-y-6">
@@ -109,18 +157,14 @@ export default function RawEventsPage() {
 							<thead className="text-left text-xs uppercase text-gray-400">
 								<tr>
 									<th className="px-3">Time</th>
-									<th className="px-3">Device</th>
-									<th className="px-3">Status</th>
-									<th className="px-3">V RMS</th>
-									<th className="px-3">Temp (C)</th>
-									<th className="px-3">Peaks (Hz)</th>
-									<th className="px-3">Payload</th>
+									{payloadKeys.map((key) => (
+										<th key={key} className="px-3">{formatColumnName(key)}</th>
+									))}
 								</tr>
 							</thead>
 							<tbody>
 								{rows.map((event) => {
 									const payload = event.payload ?? {};
-									const entries = payloadEntries(payload);
 									return (
 										<tr
 											key={event.id}
@@ -129,39 +173,11 @@ export default function RawEventsPage() {
 											<td className="px-3 py-3 text-gray-700">
 												{formatDate(event.created_at)}
 											</td>
-											<td className="px-3 py-3 font-medium text-gray-900">
-												{String(payload.device_id ?? "-")}
-											</td>
-											<td className="px-3 py-3">
-												<span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
-													{String(payload.status ?? "-")}
-												</span>
-											</td>
-											<td className="px-3 py-3 text-gray-700">
-												{payload.v_rms ?? "-"}
-											</td>
-											<td className="px-3 py-3 text-gray-700">
-												{payload.temp_c ?? "-"}
-											</td>
-											<td className="px-3 py-3 text-gray-700">
-												{[payload.peak_hz_1, payload.peak_hz_2, payload.peak_hz_3]
-													.filter((value) => value !== undefined)
-													.join(", ") || "-"}
-											</td>
-											<td className="px-3 py-3">
-												<div className="grid gap-1 rounded-md border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">
-													{entries.length === 0 ? (
-														<span className="text-gray-400">No payload data</span>
-													) : (
-														entries.map(([key, value]) => (
-															<div key={key} className="flex items-center justify-between gap-3">
-																<span className="font-medium text-gray-700">{key}</span>
-																<span className="text-gray-500">{renderPayloadValue(value)}</span>
-															</div>
-														))
-													)}
-												</div>
-											</td>
+											{payloadKeys.map((key) => (
+												<td key={key} className="px-3 py-3 text-gray-700">
+													{renderPayloadValue(key, payload[key])}
+												</td>
+											))}
 										</tr>
 									);
 								})}
