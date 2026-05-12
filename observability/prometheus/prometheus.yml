@@ -5,17 +5,17 @@ scrape_configs:
   - job_name: "ingestion-service"
     metrics_path: "/metrics"
     static_configs:
-      - targets: ["ingestion-service:8003"]
+      - targets: ["ingestion-service:8081"]
 
   - job_name: "event-processing-service"
     metrics_path: "/metrics"
     static_configs:
-      - targets: ["event-processing-service:8001"]
+      - targets: ["event-processing-service:8082"]
 
   - job_name: "notifications-service"
     metrics_path: "/metrics"
     static_configs:
-      - targets: ["notifications-service:8080"]
+      - targets: ["notifications-service:8083"]
 
   - job_name: "keycloak"
     metrics_path: "/metrics"
