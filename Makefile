@@ -1,7 +1,11 @@
 SHELL := /bin/bash
 COMPOSE := docker compose -f docker-compose.test.yml
 
-.PHONY: test-all test-down-all coverage-summary clean-test create-mosquitto-certificates
+.PHONY: test-all test-down-all coverage-summary clean-test create-mosquitto-certificates format
+
+format:
+	gofmt -w notifications-service event-processing-service ingestion-service
+	npm --prefix web-frontend run format
 
 test-all:
 	$(COMPOSE) up -d --wait

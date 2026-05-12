@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -9,7 +10,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { fetchRawEvents, type RawEvent } from "@/lib/events-api";
 
 const DEFAULT_LIMIT = 10;
@@ -60,7 +60,10 @@ function renderPayloadValue(key: string, value: unknown) {
 		return <span className="text-gray-400">—</span>;
 	}
 	console.log(key, value);
-	if (isTimestampKey(key) && (typeof value === "string" || typeof value === "number")) {
+	if (
+		isTimestampKey(key) &&
+		(typeof value === "string" || typeof value === "number")
+	) {
 		return formatDate(value);
 	}
 	if (key.toLowerCase() === "mode" && typeof value === "string") {
@@ -68,7 +71,9 @@ function renderPayloadValue(key: string, value: unknown) {
 	}
 	if (isStatusKey(key) && typeof value === "string") {
 		return (
-			<span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusStyle(value)}`}>
+			<span
+				className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusStyle(value)}`}
+			>
 				{value.toUpperCase()}
 			</span>
 		);
@@ -142,7 +147,8 @@ export default function RawEventsPage() {
 					<CardDescription>
 						{state.loading
 							? "Loading events..."
-							: `${rows.length} of ${state.total} events`}.
+							: `${rows.length} of ${state.total} events`}
+						.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -158,7 +164,9 @@ export default function RawEventsPage() {
 								<tr>
 									<th className="px-3">Time</th>
 									{payloadKeys.map((key) => (
-										<th key={key} className="px-3">{formatColumnName(key)}</th>
+										<th key={key} className="px-3">
+											{formatColumnName(key)}
+										</th>
 									))}
 								</tr>
 							</thead>

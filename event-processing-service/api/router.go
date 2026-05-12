@@ -20,8 +20,7 @@ type route struct {
 var routes = []route{
 	{http.MethodGet, "/health", health},
 	{http.MethodGet, "/metrics", metricsHandler},
-	{http.MethodGet, "/events", listAllEvents},
-	{http.MethodGet, "/tenants/:tenantID/events", listEvents},
+	{http.MethodGet, "/events", listEvents},
 }
 
 func NewRouter(gdb *gorm.DB) *gin.Engine {
@@ -63,7 +62,7 @@ func listAllEvents(gdb *gorm.DB) gin.HandlerFunc {
 
 func listEvents(gdb *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tenantID := c.Param("tenantID")
+		tenantID := c.Request.Header.Get("X-Tenant-Id")
 		filter, ok := eventFilterFromQuery(c, tenantID)
 		if !ok {
 			return
@@ -93,11 +92,7 @@ func eventFilterFromQuery(c *gin.Context, tenantID string) (db.EventFilter, bool
 	}
 
 	if filter.TenantID == "" {
-		filter.TenantID = c.GetHeader("X-Tenant-Id")
-	}
-
-	if filter.TenantID == "" {
-		filter.TenantID = c.Query("tenant_id")
+		filter.TenantID = c.Request.Header.Get("X-Tenant-Id")
 	}
 
 	if limit := c.Query("limit"); limit != "" {
