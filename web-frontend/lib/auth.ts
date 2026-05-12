@@ -95,7 +95,8 @@ export const authOptions: NextAuthOptions = {
 				return { ...token, error: "TokenExpired" };
 			}
 
-			const isExpired = token.expiresAt && Date.now() / 1000 > (token.expiresAt as number);
+			const isExpired =
+				token.expiresAt && Date.now() / 1000 > (token.expiresAt as number);
 
 			if (isExpired) {
 				return { ...token, error: "TokenExpired" };

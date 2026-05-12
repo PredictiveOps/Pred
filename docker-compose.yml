@@ -207,6 +207,12 @@ services:
     volumes:
       - ./keycloak/entrypoint.sh:/opt/keycloak-config/entrypoint.sh:ro
       - ./keycloak/configure.sh:/opt/keycloak-config/configure.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/keycloak-configured || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
     networks:
       - pred-network
 
@@ -229,7 +235,7 @@ services:
       - "${WEB_FRONTEND_PORT:-3000}:3000"
     depends_on:
       keycloak:
-        condition: service_started
+        condition: service_healthy
     networks:
       - pred-network
     restart: on-failure
@@ -296,6 +302,10 @@ services:
       PORT: 8083
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/notifications
       KAFKA_BROKERS: kafka:9092
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: pred
+      KEYCLOAK_CLIENT_ID: notifications-service
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-notifications-service-secret}
     ports:
       - "8083:8083"
     depends_on:
@@ -307,6 +317,12 @@ services:
         condition: service_completed_successfully
     networks:
       - pred-network
+    healthcheck:
+      test: ["CMD-SHELL", "no_proxy=localhost wget -qO- http://localhost:8083/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     restart: on-failure
 
   ml-service:
@@ -386,7 +402,7 @@ services:
       kong:
         condition: service_healthy
       keycloak:
-        condition: service_started
+        condition: service_healthy
     networks:
       - pred-network
     restart: on-failure
