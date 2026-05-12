@@ -44,7 +44,8 @@ func preClean(t *testing.T, gdb *gorm.DB, model any, where string, args ...any) 
 }
 
 // do fires a request against the router and returns the recorder.
-func do(t *testing.T, router http.Handler, method, path string, body any) *httptest.ResponseRecorder {
+// tenantID is set as the X-Tenant-Id header when non-empty.
+func do(t *testing.T, router http.Handler, method, path, tenantID string, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	var b []byte
 	if body != nil {
@@ -57,6 +58,9 @@ func do(t *testing.T, router http.Handler, method, path string, body any) *httpt
 	req := httptest.NewRequest(method, path, bytes.NewReader(b))
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if tenantID != "" {
+		req.Header.Set("X-Tenant-Id", tenantID)
 	}
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
