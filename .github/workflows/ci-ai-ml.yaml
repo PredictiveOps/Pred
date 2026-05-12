@@ -1,0 +1,221 @@
+name: CI - AI/ML Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ai-ml/**"
+      - ".github/workflows/ci-ai-ml.yaml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "ai-ml/**"
+      - ".github/workflows/ci-ai-ml.yaml"
+
+  workflow_dispatch:
+
+env:
+  SERVICE_NAME: ai-ml
+  IMAGE_TAG: ${{ github.sha }}
+  PYTHON_VERSION: "3.12"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  Build:
+    name: Build Python Service
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: "ai-ml/requirements.txt"
+
+      - name: Install dependencies
+        working-directory: ai-ml
+        run: pip install -r requirements.txt
+
+      - name: Verify Python installation
+        working-directory: ai-ml
+        run: python -c "import fastapi; import sklearn; print('Dependencies verified')"
+
+      - name: Notify if build fails
+        if: failure()
+        run: echo "AI/ML service build failed. Check the logs."
+
+  Testing:
+    name: Test Python Service
+    runs-on: ubuntu-latest
+    needs: Build
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: "ai-ml/requirements.txt"
+
+      #   - name: Install dependencies
+      #     working-directory: ai-ml
+      #     run: pip install -r requirements.txt
+
+      - name: Install dependencies
+        working-directory: ai-ml
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      # - name: Start AI/ML Service
+      #   working-directory: ai-ml
+      #   run: |
+      #     uvicorn main:app --host 0.0.0.0 --port 8000 &
+      #     sleep 5  # Give the server time to start
+
+      - name: Start AI/ML Service
+        working-directory: ai-ml
+        run: |
+          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          echo "Waiting for service to be ready..."
+          for i in {1..30}; do
+            curl -s http://localhost:8000/health && break
+            sleep 2
+          done
+
+      # - name: Run Python tests
+      #   working-directory: ai-ml
+      #   run: |
+      #     if [ -f test_ml_services.py ] || [ -f test_prediction.py ]; then
+      #       python -m pytest . -v --tb=short
+      #     else
+      #       echo "No test files found, skipping tests"
+      #     fi
+
+      - name: Run Python tests
+        working-directory: ai-ml
+        run: |
+          python -m pytest test_ml_services.py -v --tb=short
+
+      - name: Notify if tests fail
+        if: failure()
+        run: echo "AI/ML service tests failed. Check the logs."
+
+  Security-Scan:
+    name: Trivy Filesystem Scan
+    runs-on: ubuntu-latest
+    needs: Build
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: filesystem
+          scan-ref: ai-ml
+          format: json
+          output: trivy-ai-ml-results.json
+          exit-code: "0"
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-ai-ml-results
+          path: trivy-ai-ml-results.json
+
+  BUILD_AND_PUBLISH:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [Build, Testing, Security-Scan]
+
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f ai-ml/Dockerfile \
+            -t ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ env.IMAGE_TAG }} \
+            ai-ml
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ env.IMAGE_TAG }}
+          format: table
+          exit-code: "0"
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Push Docker image to Artifact Registry
+        run: |
+          docker push ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ env.IMAGE_TAG }}
+
+  Update-GitOps:
+    name: Update GitOps Image Tag
+    runs-on: ubuntu-latest
+    needs: [BUILD_AND_PUBLISH]
+
+    steps:
+      - name: Clone GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: PredictiveOps/Pred-Gitops
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops
+
+      - name: Update image tag
+        run: |
+          sed -i "s|${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:.*|${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ env.IMAGE_TAG }}|g" \
+            gitops/apps/${{ env.SERVICE_NAME }}/deployment.yaml
+
+      - name: Commit and push
+        run: |
+          cd gitops
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add apps/${{ env.SERVICE_NAME }}/deployment.yaml
+          git commit -m "ci: update ${{ env.SERVICE_NAME }} image to ${{ env.IMAGE_TAG }}"
+          git push
