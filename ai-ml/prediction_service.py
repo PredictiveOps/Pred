@@ -192,6 +192,29 @@ class PredictionService:
             .all()
         )
 
+    def list_predictions(
+        self,
+        tenant_id: str,
+        device_id: Optional[str] = None,
+        asset_id: Optional[str] = None,
+        predicted_status: Optional[str] = None,
+        review_status: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[Prediction], int]:
+        query = self.session.query(Prediction).filter(Prediction.tenant_id == tenant_id)
+        if device_id:
+            query = query.filter(Prediction.device_id == device_id)
+        if asset_id:
+            query = query.filter(Prediction.asset_id == asset_id)
+        if predicted_status:
+            query = query.filter(Prediction.predicted_status == predicted_status)
+        if review_status:
+            query = query.filter(Prediction.review_status == review_status)
+        total = query.count()
+        predictions = query.order_by(Prediction.created_at.desc()).offset(offset).limit(limit).all()
+        return predictions, total
+
     def count_predictions_by_status(
         self,
         tenant_id: str,
