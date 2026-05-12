@@ -310,9 +310,14 @@ services:
       - "8000:8000"
       - "8001:8001"
     depends_on:
-      - ingestion-service
-      - event-processing-service
-      - keycloak
+      ingestion-service:
+        condition: service_healthy
+      event-processing-service:
+        condition: service_started
+      notifications-service:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s
