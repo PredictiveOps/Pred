@@ -18,6 +18,15 @@ declare module "next-auth" {
 	}
 }
 
+console.log({
+	NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+	KEYCLOAK_PUBLIC_URL: process.env.KEYCLOAK_PUBLIC_URL,
+	KEYCLOAK_REALM: process.env.KEYCLOAK_REALM,
+	KEYCLOAK_URL: process.env.KEYCLOAK_URL,
+	KEYCLOAK_CLIENT_ID: process.env.KEYCLOAK_CLIENT_ID,
+	KEYCLOAK_CLIENT_SECRET: process.env.KEYCLOAK_CLIENT_SECRET,
+});
+
 export const authOptions: NextAuthOptions = {
 	debug: true,
 	secret: process.env.NEXTAUTH_SECRET,
