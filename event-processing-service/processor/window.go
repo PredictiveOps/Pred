@@ -21,7 +21,7 @@ type windowBuffer struct {
 // When a window closes, FlushFunc is called with the accumulated readings.
 type WindowManager struct {
 	mu       sync.Mutex
-	windows  map[uint]*windowBuffer // keyed by device_id
+	windows  map[aggregationKey]*windowBuffer
 	duration time.Duration
 	onFlush  FlushFunc
 	stop     chan struct{}
@@ -32,7 +32,7 @@ type WindowManager struct {
 // Call Stop() during graceful shutdown to flush remaining open windows.
 func NewWindowManager(duration time.Duration, onFlush FlushFunc) *WindowManager {
 	wm := &WindowManager{
-		windows:  make(map[uint]*windowBuffer),
+		windows:  make(map[aggregationKey]*windowBuffer),
 		duration: duration,
 		onFlush:  onFlush,
 		stop:     make(chan struct{}),
@@ -50,10 +50,11 @@ func (wm *WindowManager) Add(event SensorEvent) {
 	defer wm.mu.Unlock()
 
 	now := time.Now()
-	buf, exists := wm.windows[event.DeviceID]
+	key := aggregationKey{tenantID: event.TenantID, deviceID: event.DeviceID}
+	buf, exists := wm.windows[key]
 
 	if !exists {
-		wm.windows[event.DeviceID] = &windowBuffer{
+		wm.windows[key] = &windowBuffer{
 			tenantID: event.TenantID,
 			readings: []SensorEvent{event},
 			openedAt: now,
@@ -64,7 +65,7 @@ func (wm *WindowManager) Add(event SensorEvent) {
 	if now.Sub(buf.openedAt) >= wm.duration {
 		// Window expired on message arrival — flush and open a new one.
 		wm.dispatchFlush(event.DeviceID, buf)
-		wm.windows[event.DeviceID] = &windowBuffer{
+		wm.windows[key] = &windowBuffer{
 			tenantID: event.TenantID,
 			readings: []SensorEvent{event},
 			openedAt: now,
@@ -84,12 +85,12 @@ func (wm *WindowManager) Stop() {
 	// Final flush of any windows still open.
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
-	for deviceID, buf := range wm.windows {
+	for key, buf := range wm.windows {
 		if len(buf.readings) > 0 {
-			wm.dispatchFlush(deviceID, buf)
+			wm.dispatchFlush(key.deviceID, buf)
 		}
 	}
-	wm.windows = make(map[uint]*windowBuffer)
+	wm.windows = make(map[aggregationKey]*windowBuffer)
 }
 
 // flusher runs in a background goroutine and ticks every second to close
@@ -114,10 +115,10 @@ func (wm *WindowManager) flushExpired() {
 	defer wm.mu.Unlock()
 
 	now := time.Now()
-	for deviceID, buf := range wm.windows {
+	for key, buf := range wm.windows {
 		if now.Sub(buf.openedAt) >= wm.duration {
-			wm.dispatchFlush(deviceID, buf)
-			delete(wm.windows, deviceID)
+			wm.dispatchFlush(key.deviceID, buf)
+			delete(wm.windows, key)
 		}
 	}
 }
