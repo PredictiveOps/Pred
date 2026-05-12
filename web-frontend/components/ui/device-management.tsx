@@ -21,7 +21,7 @@ import {
 	updateDeviceStatus,
 } from "@/lib/ingestion-api";
 
-export function AssetManagement() {
+export function DeviceManagement() {
 	const { data: session } = useSession();
 	const [devices, setDevices] = useState<DeviceDetails[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -138,7 +138,7 @@ export function AssetManagement() {
 			{/* Header */}
 			<div className="flex items-start justify-between mb-6">
 				<div>
-					<h1 className="text-3xl font-bold mb-2">Asset Management</h1>
+					<h1 className="text-3xl font-bold mb-2">Device Management</h1>
 					<p className="text-gray-500 text-sm">
 						{loading
 							? "Loading devices…"
