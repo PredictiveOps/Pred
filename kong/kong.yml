@@ -39,6 +39,25 @@ upstreams:
           http_failures: 2
           timeouts: 2
 
+  - name: notifications-upstream
+    targets:
+      - target: notifications-service:8083
+        weight: 100
+    healthchecks:
+      active:
+        type: http
+        http_path: /health
+        timeout: 3
+        concurrency: 10
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          tcp_failures: 2
+          http_failures: 2
+          timeouts: 2
+
 services:
   - name: event-processing
     host: event-processing-upstream
