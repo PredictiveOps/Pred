@@ -17,17 +17,9 @@ import (
 	"testutil"
 )
 
-// noopWindowManager returns a WindowManager whose flush callback does nothing.
-// Used in integration tests that only care about DB insertion, not ML forwarding.
-func noopWindowManager() *processor.WindowManager {
-	return processor.NewWindowManager(5*time.Second, func(_ string, _ uint, _ []processor.SensorEvent) {})
-}
-
 func TestHandleMessage_InsertsEvent(t *testing.T) {
 	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
-	wm := noopWindowManager()
-	defer wm.Stop()
 
 	body := map[string]any{
 		"tenant_id": "t-events",
@@ -40,7 +32,7 @@ func TestHandleMessage_InsertsEvent(t *testing.T) {
 		"status":    "nominal",
 	}
 
-	if err := handleMessage(ctx, gdb, wm, testutil.MakeMessage(t, body)); err != nil {
+	if err := handleMessage(ctx, gdb, testutil.MakeMessage(t, body)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -124,10 +116,7 @@ func TestCrossService_IngestionToEventProcessing(t *testing.T) {
 		t.Fatalf("read from kafka: %v", err)
 	}
 
-	wm := noopWindowManager()
-	defer wm.Stop()
-
-	if err := handleMessage(ctx, gdb, wm, msg); err != nil {
+	if err := handleMessage(ctx, gdb, msg); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -143,11 +132,9 @@ func TestCrossService_IngestionToEventProcessing(t *testing.T) {
 func TestHandleMessage_InvalidJSON(t *testing.T) {
 	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
-	wm := noopWindowManager()
-	defer wm.Stop()
 
 	msg := kafka.Message{Value: []byte(`not valid json`)}
-	err := handleMessage(ctx, gdb, wm, msg)
+	err := handleMessage(ctx, gdb, msg)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
 	}
