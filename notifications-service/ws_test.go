@@ -147,8 +147,10 @@ func TestWSHandler_ValidUpgrade(t *testing.T) {
 	srv := httptest.NewServer(wsHandler(hub))
 	defer srv.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?tenant_id=test-tenant"
-	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+	headers := http.Header{}
+	headers.Set("X-Tenant-Id", "test-tenant")
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, headers)
 	if err != nil {
 		t.Fatalf("WebSocket dial failed (status %v): %v", resp, err)
 	}

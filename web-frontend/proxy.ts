@@ -32,6 +32,7 @@ export const config = {
 		"/alerts/:path*",
 		"/assets/:path*",
 		"/predictions/:path*",
+		"/raw-events/:path*",
 		"/login",
 	],
 };

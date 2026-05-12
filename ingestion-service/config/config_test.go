@@ -34,8 +34,8 @@ func TestLoadConfig_Defaults(t *testing.T) {
 
 	LoadConfig()
 
-	if Port != "2500" {
-		t.Errorf("Port: got %q, want %q", Port, "2500")
+	if Port != "8081" {
+		t.Errorf("Port: got %q, want %q", Port, "8081")
 	}
 	if RedisAddr != "localhost:6379" {
 		t.Errorf("RedisAddr: got %q, want %q", RedisAddr, "localhost:6379")

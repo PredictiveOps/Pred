@@ -49,6 +49,8 @@ PYEOF
   tmpfile=$(mktemp)
   trap 'rm -f "$tmpfile"' RETURN
   printf '%s' "$rendered" > "$tmpfile"
+  log "Rendered Kong config:"
+  echo "$rendered"
   curl -fsS --max-time 10 -X POST "$KONG_ADMIN_URL/config" \
     -F "config=@$tmpfile" > /dev/null
 }

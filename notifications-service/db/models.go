@@ -17,11 +17,11 @@ type DeviceToken struct {
 }
 
 type Notification struct {
-	ID        int64          `gorm:"primaryKey"`
-	TenantID  string         `gorm:"not null;index:notifications_tenant"`
-	Type      string         `gorm:"not null"`
-	Payload   datatypes.JSON `gorm:"type:jsonb;not null"`
-	CreatedAt time.Time      `gorm:"not null;default:now()"`
+	ID        int64          `gorm:"primaryKey" json:"id"`
+	TenantID  string         `gorm:"not null;index:notifications_tenant" json:"tenant_id"`
+	Type      string         `gorm:"not null" json:"type"`
+	Payload   datatypes.JSON `gorm:"type:jsonb;not null" json:"payload,omitempty"`
+	CreatedAt time.Time      `gorm:"not null;default:now()" json:"created_at,omitempty"`
 }
 
 type NotificationDelivery struct {

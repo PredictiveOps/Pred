@@ -237,10 +237,11 @@ func TestPrepareKafkaPayload_FieldMapping(t *testing.T) {
 		PeakHz3: 30,
 		Status:  "ok",
 	}
-	kp := prepareKafkaPayload(99, 1234, data)
+	kp := prepareKafkaPayload(99, "default-tenant", 1234, data)
 
 	checks := map[string]bool{
 		"device_id": kp.DeviceID == 99,
+		"tenant_id": kp.TenantID == "default-tenant",
 		"timestamp": kp.Timestamp == 1234,
 		"mode":      kp.Mode == data.Mode,
 		"vrms":      kp.VRMS == data.VRMS,

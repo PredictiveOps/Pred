@@ -10,21 +10,34 @@ import (
 	"testutil"
 )
 
+// mockKeycloakClient is a test mock for KeycloakClient
+type mockKeycloakClient struct {
+	recipients []Recipient
+}
+
+func (m *mockKeycloakClient) GetTenantRecipients(ctx context.Context, tenantID string) ([]Recipient, error) {
+	return m.recipients, nil
+}
+
 func TestHandleMessage_Email(t *testing.T) {
 	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
-	event := AlertEvent{
-		TenantID: "t-email",
-		Type:     "email",
-		Payload:  json.RawMessage(`{"subject":"Test","body":"Hello"}`),
-		Recipients: []Recipient{
+	// Mock Keycloak client
+	kc := &mockKeycloakClient{
+		recipients: []Recipient{
 			{UserID: "u1", Email: "u1@example.com"},
 			{UserID: "u2", Email: "u2@example.com"},
 		},
 	}
 
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+	event := AlertEvent{
+		TenantID: "t-email",
+		Type:     "email",
+		Payload:  json.RawMessage(`{"subject":"Test","body":"Hello"}`),
+	}
+
+	if err := handleMessage(ctx, gdb, nil, kc, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -65,17 +78,21 @@ func TestHandleMessage_Push(t *testing.T) {
 		}
 	})
 
-	event := AlertEvent{
-		TenantID: "t-push",
-		Type:     "push",
-		Payload:  json.RawMessage(`{"title":"Alert","body":"Check this out"}`),
-		Recipients: []Recipient{
+	// Mock Keycloak client
+	kc := &mockKeycloakClient{
+		recipients: []Recipient{
 			{UserID: "u10"},
 			{UserID: "u11"},
 		},
 	}
 
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+	event := AlertEvent{
+		TenantID: "t-push",
+		Type:     "push",
+		Payload:  json.RawMessage(`{"title":"Alert","body":"Check this out"}`),
+	}
+
+	if err := handleMessage(ctx, gdb, nil, kc, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -103,14 +120,18 @@ func TestHandleMessage_UnknownType(t *testing.T) {
 	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
-	event := AlertEvent{
-		TenantID:   "t-unknown",
-		Type:       "sms",
-		Payload:    json.RawMessage(`{}`),
-		Recipients: []Recipient{{UserID: "u1"}},
+	// Mock Keycloak client
+	kc := &mockKeycloakClient{
+		recipients: []Recipient{{UserID: "u1"}},
 	}
 
-	err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event))
+	event := AlertEvent{
+		TenantID: "t-unknown",
+		Type:     "sms",
+		Payload:  json.RawMessage(`{}`),
+	}
+
+	err := handleMessage(ctx, gdb, nil, kc, testutil.MakeMessage(t, event))
 	if err == nil {
 		t.Fatal("expected error for unknown notification type, got nil")
 	}
@@ -121,7 +142,7 @@ func TestHandleMessage_InvalidJSON(t *testing.T) {
 	ctx := context.Background()
 
 	msg := testutil.MakeMessage(t, []byte(`not valid json`))
-	err := handleMessage(ctx, gdb, nil, msg)
+	err := handleMessage(ctx, gdb, nil, nil, msg)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
 	}
@@ -131,12 +152,16 @@ func TestHandleMessage_MissingTenantID(t *testing.T) {
 	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
-	event := AlertEvent{
-		Type:       "email",
-		Payload:    json.RawMessage(`{}`),
-		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
+	// Mock Keycloak client
+	kc := &mockKeycloakClient{
+		recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
 	}
-	err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event))
+
+	event := AlertEvent{
+		Type:    "email",
+		Payload: json.RawMessage(`{}`),
+	}
+	err := handleMessage(ctx, gdb, nil, kc, testutil.MakeMessage(t, event))
 	if err == nil {
 		t.Fatal("expected error for missing tenant_id, got nil")
 	}
@@ -146,13 +171,17 @@ func TestHandleMessage_EmptyRecipients(t *testing.T) {
 	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
-	event := AlertEvent{
-		TenantID:   "t-empty-recip",
-		Type:       "email",
-		Payload:    json.RawMessage(`{}`),
-		Recipients: []Recipient{},
+	// Mock Keycloak client with empty recipients
+	kc := &mockKeycloakClient{
+		recipients: []Recipient{},
 	}
-	err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event))
+
+	event := AlertEvent{
+		TenantID: "t-empty-recip",
+		Type:     "email",
+		Payload:  json.RawMessage(`{}`),
+	}
+	err := handleMessage(ctx, gdb, nil, kc, testutil.MakeMessage(t, event))
 	if err == nil {
 		t.Fatal("expected error for empty recipients, got nil")
 	}
@@ -163,13 +192,17 @@ func TestHandleMessage_LowFailureProbability(t *testing.T) {
 	ctx := context.Background()
 	t.Setenv("FAILURE_THRESHOLD", "0.9")
 
-	event := AlertEvent{
-		TenantID:   "t-low-prob",
-		Type:       "email",
-		Payload:    json.RawMessage(`{"failure_probability":0.5}`),
-		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
+	// Mock Keycloak client
+	kc := &mockKeycloakClient{
+		recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+
+	event := AlertEvent{
+		TenantID: "t-low-prob",
+		Type:     "email",
+		Payload:  json.RawMessage(`{"failure_probability":0.5}`),
+	}
+	if err := handleMessage(ctx, gdb, nil, kc, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -193,13 +226,17 @@ func TestHandleMessage_HighFailureProbability(t *testing.T) {
 		gdb.Where("tenant_id = ?", "t-high-prob").Delete(&db.Notification{})
 	})
 
-	event := AlertEvent{
-		TenantID:   "t-high-prob",
-		Type:       "email",
-		Payload:    json.RawMessage(`{"failure_probability":0.95}`),
-		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
+	// Mock Keycloak client
+	kc := &mockKeycloakClient{
+		recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+
+	event := AlertEvent{
+		TenantID: "t-high-prob",
+		Type:     "email",
+		Payload:  json.RawMessage(`{"failure_probability":0.95}`),
+	}
+	if err := handleMessage(ctx, gdb, nil, kc, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -214,16 +251,20 @@ func TestHandleMessage_EmailSkipsEmptyAddress(t *testing.T) {
 	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
-	event := AlertEvent{
-		TenantID: "t-email-skip",
-		Type:     "email",
-		Payload:  json.RawMessage(`{"subject":"Test"}`),
-		Recipients: []Recipient{
+	// Mock Keycloak client
+	kc := &mockKeycloakClient{
+		recipients: []Recipient{
 			{UserID: "u1", Email: "u1@example.com"},
 			{UserID: "u2", Email: ""},
 		},
 	}
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+
+	event := AlertEvent{
+		TenantID: "t-email-skip",
+		Type:     "email",
+		Payload:  json.RawMessage(`{"subject":"Test"}`),
+	}
+	if err := handleMessage(ctx, gdb, nil, kc, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -246,13 +287,17 @@ func TestHandleMessage_PushNoDeviceTokens(t *testing.T) {
 	gdb := testutil.OpenTestDB(t, db.Open)
 	ctx := context.Background()
 
-	event := AlertEvent{
-		TenantID:   "t-push-notokens",
-		Type:       "push",
-		Payload:    json.RawMessage(`{"title":"Alert"}`),
-		Recipients: []Recipient{{UserID: "u-no-token"}},
+	// Mock Keycloak client
+	kc := &mockKeycloakClient{
+		recipients: []Recipient{{UserID: "u-no-token"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+
+	event := AlertEvent{
+		TenantID: "t-push-notokens",
+		Type:     "push",
+		Payload:  json.RawMessage(`{"title":"Alert"}`),
+	}
+	if err := handleMessage(ctx, gdb, nil, kc, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -287,13 +332,17 @@ func TestHandleMessage_PushMultipleTokensPerUser(t *testing.T) {
 		}
 	})
 
-	event := AlertEvent{
-		TenantID:   "t-push-multi",
-		Type:       "push",
-		Payload:    json.RawMessage(`{"title":"Multi"}`),
-		Recipients: []Recipient{{UserID: "u20"}},
+	// Mock Keycloak client
+	kc := &mockKeycloakClient{
+		recipients: []Recipient{{UserID: "u20"}},
 	}
-	if err := handleMessage(ctx, gdb, nil, testutil.MakeMessage(t, event)); err != nil {
+
+	event := AlertEvent{
+		TenantID: "t-push-multi",
+		Type:     "push",
+		Payload:  json.RawMessage(`{"title":"Multi"}`),
+	}
+	if err := handleMessage(ctx, gdb, nil, kc, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -357,13 +406,17 @@ func TestHandleMessage_BroadcastsToCorrectTenant(t *testing.T) {
 		gdb.Where("tenant_id = ?", tenantID).Delete(&db.Notification{})
 	})
 
-	event := AlertEvent{
-		TenantID:   tenantID,
-		Type:       "email",
-		Payload:    json.RawMessage(`{"subject":"Alert"}`),
-		Recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
+	// Mock Keycloak client
+	kc := &mockKeycloakClient{
+		recipients: []Recipient{{UserID: "u1", Email: "u1@example.com"}},
 	}
-	if err := handleMessage(ctx, gdb, hub, testutil.MakeMessage(t, event)); err != nil {
+
+	event := AlertEvent{
+		TenantID: tenantID,
+		Type:     "email",
+		Payload:  json.RawMessage(`{"subject":"Alert"}`),
+	}
+	if err := handleMessage(ctx, gdb, hub, kc, testutil.MakeMessage(t, event)); err != nil {
 		t.Fatalf("handleMessage: %v", err)
 	}
 
@@ -428,16 +481,20 @@ func TestCrossService_AlertEventFlow(t *testing.T) {
 	alertPayload := json.RawMessage(`{"device_id":"motor-42","failure_probability":0.93,"temp_c":87.2,"v_rms":3.1}`)
 
 	t.Run("email", func(t *testing.T) {
-		event := AlertEvent{
-			TenantID: tenantID,
-			Type:     "email",
-			Payload:  alertPayload,
-			Recipients: []Recipient{
+		// Mock Keycloak client
+		kc := &mockKeycloakClient{
+			recipients: []Recipient{
 				{UserID: "xs-u1", Email: "u1@example.com"},
 				{UserID: "xs-u2", Email: "u2@example.com"},
 			},
 		}
-		if err := handleMessage(ctx, gdb, hub, testutil.MakeMessage(t, event)); err != nil {
+
+		event := AlertEvent{
+			TenantID: tenantID,
+			Type:     "email",
+			Payload:  alertPayload,
+		}
+		if err := handleMessage(ctx, gdb, hub, kc, testutil.MakeMessage(t, event)); err != nil {
 			t.Fatalf("handleMessage: %v", err)
 		}
 
@@ -472,16 +529,20 @@ func TestCrossService_AlertEventFlow(t *testing.T) {
 	})
 
 	t.Run("push", func(t *testing.T) {
-		event := AlertEvent{
-			TenantID: tenantID,
-			Type:     "push",
-			Payload:  alertPayload,
-			Recipients: []Recipient{
+		// Mock Keycloak client
+		kc := &mockKeycloakClient{
+			recipients: []Recipient{
 				{UserID: "xs-u1"},
 				{UserID: "xs-u2"},
 			},
 		}
-		if err := handleMessage(ctx, gdb, hub, testutil.MakeMessage(t, event)); err != nil {
+
+		event := AlertEvent{
+			TenantID: tenantID,
+			Type:     "push",
+			Payload:  alertPayload,
+		}
+		if err := handleMessage(ctx, gdb, hub, kc, testutil.MakeMessage(t, event)); err != nil {
 			t.Fatalf("handleMessage: %v", err)
 		}
 

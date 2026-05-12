@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -35,9 +36,9 @@ func notificationsHandler(gdb *gorm.DB) http.HandlerFunc {
 			return
 		}
 
-		tenantID := r.URL.Query().Get("tenant_id")
+		tenantID := r.Header.Get("X-Tenant-Id")
 		if tenantID == "" {
-			http.Error(w, "tenant_id is required", http.StatusBadRequest)
+			http.Error(w, "X-Tenant-Id header is required", http.StatusBadRequest)
 			return
 		}
 
@@ -68,7 +69,7 @@ func notificationsHandler(gdb *gorm.DB) http.HandlerFunc {
 
 func wsHandler(hub *Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		tenantID := r.URL.Query().Get("tenant_id")
+		tenantID := r.Header.Get("X-Tenant-Id")
 		if tenantID == "" {
 			http.Error(w, "tenant_id is required", http.StatusBadRequest)
 			return
@@ -94,14 +95,53 @@ func wsHandler(hub *Hub) http.HandlerFunc {
 	}
 }
 
+func healthHandler(gdb *gorm.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		addCORSHeaders(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Check database connectivity
+		sqlDB, err := gdb.DB()
+		if err != nil {
+			http.Error(w, "database connection failed", http.StatusServiceUnavailable)
+			return
+		}
+
+		if err := sqlDB.Ping(); err != nil {
+			http.Error(w, "database ping failed", http.StatusServiceUnavailable)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":  "healthy",
+			"service": "notifications-service",
+		})
+	}
+}
+
 func startHTTPServer(gdb *gorm.DB, hub *Hub) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/notifications", notificationsHandler(gdb))
+	mux.HandleFunc("/list", notificationsHandler(gdb))
 	mux.HandleFunc("/ws", wsHandler(hub))
 	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc("/health", healthHandler(gdb))
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8083"
+	}
 	server := &http.Server{
-		Addr:              ":8080",
+		Addr:              ":" + port,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 	}

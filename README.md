@@ -70,6 +70,12 @@ For authentication setup, see [keycloak/README.md](./keycloak/README.md).
 
 For MQTT broker setup and credentials, see [mosquitto/README.md](./mosquitto/README.md).
 
+Generate the dev TLS certificates (required before first run):
+
+```sh
+make create-mosquitto-certificates
+```
+
 ### Running tests
 
 Go services share a test Postgres instance (host port `5434`) and a test Kafka broker (host port `19092`) defined in `docker-compose.test.yml`. Each service gets its own database in the test Postgres. Both run alongside the dev compose without port conflicts.
@@ -102,6 +108,26 @@ When calling services directly (bypassing Kong, e.g. in local development), supp
 ```sh
 curl -H 'X-Tenant-Id: <tenant_id>' ...
 ```
+
+## Ports
+
+Every service owns a unique port. The same port number is used in both local development and the cluster so there is no environment-specific mapping to remember.
+
+| Service                  | Port | Local host port | Notes                                                   |
+| ------------------------ | ---- | --------------- | ------------------------------------------------------- |
+| postgres                 | 5432 | 5433            | Just in case if postgres is installed on the host       |
+| kafka                    | 9092 | 9092            | 9093 used internally for KRaft controller               |
+| redis                    | 6379 | 6379            |                                                         |
+| mosquitto                | 8883 | 8883            | MQTTS                                                   |
+| prometheus               | 9090 | 9090            |                                                         |
+| keycloak                 | 8080 | 8080            |                                                         |
+| kong (proxy)             | 8000 | 8000            |                                                         |
+| kong (admin API)         | 8001 | 8001            |                                                         |
+| web-frontend             | 3000 | 3000            |                                                         |
+| ingestion-service        | 8081 | 8081            |                                                         |
+| event-processing-service | 8082 | 8082            |                                                         |
+| notifications-service    | 8083 | 8083            |                                                         |
+| ml-service               | 8084 | 8084            |                                                         |
 
 ## Services
 
