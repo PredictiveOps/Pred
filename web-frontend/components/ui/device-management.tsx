@@ -21,7 +21,7 @@ import {
 	updateDeviceStatus,
 } from "@/lib/ingestion-api";
 
-export function AssetManagement() {
+export function DeviceManagement() {
 	const { data: session } = useSession();
 	const [devices, setDevices] = useState<DeviceDetails[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -138,7 +138,7 @@ export function AssetManagement() {
 			{/* Header */}
 			<div className="flex items-start justify-between mb-6">
 				<div>
-					<h1 className="text-3xl font-bold mb-2">Asset Management</h1>
+					<h1 className="text-3xl font-bold mb-2">Device Management</h1>
 					<p className="text-gray-500 text-sm">
 						{loading
 							? "Loading devices…"
@@ -265,9 +265,6 @@ export function AssetManagement() {
 										Device ID
 									</th>
 									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
-										Tenant ID
-									</th>
-									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
 										Status
 									</th>
 									<th className="text-xs text-gray-500 font-semibold uppercase text-left py-3 px-4">
@@ -296,7 +293,7 @@ export function AssetManagement() {
 								{!loading && devices.length === 0 && (
 									<tr>
 										<td
-											colSpan={6}
+											colSpan={5}
 											className="py-10 text-center text-gray-400 text-sm"
 										>
 											No devices registered yet. Use "Add New Device" to
@@ -317,9 +314,6 @@ export function AssetManagement() {
 													<span className="text-sm font-semibold text-gray-800">
 														#{device.device_id}
 													</span>
-												</td>
-												<td className="py-4 px-4 text-sm text-gray-600">
-													{device.tenant_id}
 												</td>
 												<td className="py-4 px-4">
 													<div className="flex items-center gap-2">

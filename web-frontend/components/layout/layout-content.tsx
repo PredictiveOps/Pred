@@ -1,7 +1,6 @@
 "use client";
 
 import {
-	AlertTriangle,
 	Bell,
 	Box,
 	FileText,
@@ -29,11 +28,9 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
 
 	const navItems = [
 		{ path: "/dashboard", label: "Dashboard", icon: Grid3x3 },
-		{ path: "/motors", label: "Motors", icon: Settings },
-		{ path: "/alerts", label: "Alerts", icon: AlertTriangle },
-		{ path: "/assets", label: "Assets", icon: Box },
-		{ path: "/predictions", label: "Predictions", icon: Lightbulb },
+		{ path: "/devices", label: "Devices", icon: Box },
 		{ path: "/raw-events", label: "Raw Events", icon: List },
+		{ path: "/predictions", label: "Predictions", icon: Lightbulb },
 		{ path: "/notifications", label: "Notifications", icon: Bell },
 	];
 

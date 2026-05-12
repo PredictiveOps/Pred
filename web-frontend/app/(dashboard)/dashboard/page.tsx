@@ -1,251 +1,373 @@
 "use client";
 
-import { AlertCircle, AlertTriangle, CheckCircle } from "lucide-react";
+import {
+	AlertCircle,
+	AlertTriangle,
+	Bell,
+	CheckCircle2,
+	Loader2,
+	RefreshCcw,
+	Zap,
+} from "lucide-react";
+import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fetchPredictions, type Prediction } from "@/lib/predictions-api";
+import { fetchRawEvents } from "@/lib/events-api";
+
+const NOTIFICATIONS_BASE = `${process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8000"}/api/notifications`;
+
+type Notification = {
+	id: number;
+	tenant_id: string;
+	type: string;
+	payload: unknown;
+	created_at: string;
+};
+
+function getFailureProbability(payload: unknown): number | null {
+	if (!payload || typeof payload !== "object" || Array.isArray(payload))
+		return null;
+	const p = (payload as Record<string, unknown>).failure_probability;
+	if (typeof p === "number") return p;
+	if (typeof p === "string") {
+		const n = Number.parseFloat(p);
+		return Number.isNaN(n) ? null : n;
+	}
+	return null;
+}
+
+function formatDate(value: string) {
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return value;
+	return new Intl.DateTimeFormat("en", {
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(date);
+}
+
+const STATUS_BADGE: Record<string, string> = {
+	normal: "bg-green-100 text-green-700",
+	warning: "bg-yellow-100 text-yellow-700",
+	critical: "bg-red-100 text-red-700",
+};
 
 export default function DashboardPage() {
+	const { data: session, status } = useSession();
+
+	const [predictions, setPredictions] = useState<Prediction[]>([]);
+	const [notifications, setNotifications] = useState<Notification[]>([]);
+	const [eventsTotal, setEventsTotal] = useState<number | null>(null);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+
+	const accessToken = session?.accessToken;
+	const tenantId = session?.tenantId ?? "";
+
+	const load = useCallback(async () => {
+		if (status === "loading") return;
+		setLoading(true);
+		setError(null);
+		try {
+			const [predsRes, eventsRes, notifRes] = await Promise.allSettled([
+				fetchPredictions(accessToken, tenantId, 50, 0),
+				fetchRawEvents(accessToken, tenantId, 1, 0),
+				fetch(`${NOTIFICATIONS_BASE}/list?limit=5`, {
+					headers: {
+						"Content-Type": "application/json",
+						...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
+						...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+					},
+					cache: "no-store",
+				}),
+			]);
+
+			if (predsRes.status === "fulfilled") {
+				setPredictions(predsRes.value.predictions);
+			}
+			if (eventsRes.status === "fulfilled") {
+				setEventsTotal(eventsRes.value.count);
+			}
+			if (notifRes.status === "fulfilled" && notifRes.value.ok) {
+				const data = (await notifRes.value.json()) as Notification[];
+				setNotifications(data);
+			}
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to load data.");
+		} finally {
+			setLoading(false);
+		}
+	}, [accessToken, tenantId, status]);
+
+	useEffect(() => {
+		void load();
+	}, [load]);
+
+	const stats = useMemo(() => {
+		const normal = predictions.filter(
+			(p) => p.predicted_status === "normal",
+		).length;
+		const warning = predictions.filter(
+			(p) => p.predicted_status === "warning",
+		).length;
+		const critical = predictions.filter(
+			(p) => p.predicted_status === "critical",
+		).length;
+		const highRisk = notifications.filter((n) => {
+			const p = getFailureProbability(n.payload);
+			return p !== null && p >= 0.8;
+		}).length;
+		return { normal, warning, critical, highRisk, total: predictions.length };
+	}, [predictions, notifications]);
+
+	const recentPredictions = useMemo(
+		() => predictions.slice(0, 5),
+		[predictions],
+	);
+
+	const statCards = [
+		{
+			label: "NORMAL",
+			value: stats.normal,
+			icon: CheckCircle2,
+			color: "text-green-600",
+			bar: "bg-green-500",
+		},
+		{
+			label: "WARNING",
+			value: stats.warning,
+			icon: AlertTriangle,
+			color: "text-yellow-500",
+			bar: "bg-yellow-500",
+		},
+		{
+			label: "CRITICAL",
+			value: stats.critical,
+			icon: AlertCircle,
+			color: "text-red-500",
+			bar: "bg-red-500",
+		},
+		{
+			label: "HIGH-RISK ALERTS",
+			value: stats.highRisk,
+			icon: Bell,
+			color: stats.highRisk > 0 ? "text-red-500" : "text-gray-400",
+			bar: stats.highRisk > 0 ? "bg-red-500" : "bg-gray-200",
+		},
+	];
+
 	return (
-		<>
-			<div className="flex justify-between items-start mb-6">
+		<div className="space-y-6">
+			<div className="flex items-start justify-between">
 				<div>
-					<h1 className="text-3xl font-bold">Control Room Dashboard</h1>
-					<p className="text-gray-500 text-sm mt-1">
-						Monitoring 124 active industrial motor units
+					<h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
+					<p className="text-sm text-gray-500 mt-1">
+						{loading
+							? "Loading system overview…"
+							: `${stats.total} predictions · ${eventsTotal ?? "—"} events ingested`}
 					</p>
 				</div>
-				<div className="flex gap-3">
-					<button
-						type="button"
-						className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 text-sm font-medium flex items-center gap-2"
-					>
-						⚙️ FILTER
-					</button>
-					<button
-						type="button"
-						className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium flex items-center gap-2"
-					>
-						↓ EXPORT REPORT
-					</button>
-				</div>
+				<Button
+					type="button"
+					onClick={() => void load()}
+					disabled={loading || status === "loading"}
+					className="bg-blue-600 hover:bg-blue-700 text-white px-5 font-semibold uppercase text-sm flex items-center gap-2"
+				>
+					{loading ? (
+						<Loader2 className="w-4 h-4 animate-spin" />
+					) : (
+						<RefreshCcw className="w-4 h-4" />
+					)}
+					REFRESH
+				</Button>
 			</div>
 
-			<div className="grid grid-cols-4 gap-4 mb-6">
-				{/* Status Cards */}
-				<div className="bg-white border border-gray-200 rounded p-4">
-					<div className="text-gray-500 text-xs font-semibold mb-3">
-						NORMAL OPERATION
-					</div>
-					<div className="text-3xl font-bold">112</div>
-					<div className="text-gray-400 text-xs mt-1">UNITS</div>
-					<div className="mt-3 h-1 bg-gradient-to-r from-green-500 to-emerald-600 rounded"></div>
+			{error && (
+				<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-center gap-2">
+					<AlertCircle className="w-4 h-4 flex-shrink-0" />
+					{error}
 				</div>
+			)}
 
-				<div className="bg-white border border-gray-200 rounded p-4">
-					<div className="text-gray-500 text-xs font-semibold mb-3">
-						WARNING STATUS
-					</div>
-					<div className="text-3xl font-bold text-yellow-500">9</div>
-					<div className="text-gray-400 text-xs mt-1">UNITS</div>
-					<div className="mt-3 h-1 bg-gradient-to-r from-yellow-500 to-orange-600 rounded"></div>
-				</div>
-
-				<div className="bg-white border border-gray-200 rounded p-4">
-					<div className="text-gray-500 text-xs font-semibold mb-3">
-						CRITICAL ALERTS
-					</div>
-					<div className="text-3xl font-bold text-red-500">3</div>
-					<div className="text-gray-400 text-xs mt-1">UNITS</div>
-					<div className="mt-3 h-1 bg-gradient-to-r from-red-500 to-rose-600 rounded"></div>
-				</div>
-
-				<div className="bg-white border border-gray-200 rounded p-4">
-					<div className="text-gray-500 text-xs font-semibold mb-3">
-						ACTIVE ALERTS
-					</div>
-					<div className="text-3xl font-bold">
-						<span className="text-red-500">1</span>
-						<span className="text-xs ml-2 bg-red-600 text-white px-2 py-1 rounded">
-							NEW
-						</span>
-					</div>
-					<div className="text-gray-400 text-xs mt-1">UNITS</div>
-				</div>
+			<div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+				{statCards.map((s) => {
+					const Icon = s.icon;
+					return (
+						<Card key={s.label} className="bg-white border-gray-200">
+							<CardContent className="p-5">
+								<div className="flex justify-between items-start mb-3">
+									<span className="text-xs text-gray-500 font-semibold uppercase">
+										{s.label}
+									</span>
+									<Icon className={`w-4 h-4 ${s.color}`} />
+								</div>
+								<div className={`text-3xl font-bold ${s.color}`}>
+									{loading ? <Skeleton className="h-8 w-10" /> : s.value}
+								</div>
+								<div className={`mt-3 h-1 ${s.bar} rounded`} />
+							</CardContent>
+						</Card>
+					);
+				})}
 			</div>
 
-			<div className="grid grid-cols-3 gap-4 mb-6">
-				{/* Motor Unit Cards */}
-				<div className="bg-white border border-gray-200 rounded p-4">
-					<div className="flex items-center justify-between mb-4">
-						<div className="text-sm font-semibold">⚙️ MOTOR UNIT A-102</div>
-						<span className="text-xs bg-red-600 text-white px-2 py-1 rounded">
-							CRITICAL
-						</span>
-					</div>
-					<div className="grid grid-cols-2 gap-4 mb-4">
-						<div>
-							<div className="text-xs text-gray-500">VIBRATION</div>
-							<div className="text-2xl font-bold">
-								4.82<span className="text-xs text-gray-500">mm/s</span>
-							</div>
-							<div className="mt-1 h-0.5 bg-red-500 rounded"></div>
+			<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+				<Card className="bg-white border-gray-200">
+					<CardHeader className="pb-3">
+						<CardTitle className="text-sm font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+							<Zap className="w-4 h-4 text-blue-500" />
+							Recent Predictions
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="overflow-x-auto">
+							<table className="w-full text-sm">
+								<thead>
+									<tr className="border-b border-gray-100">
+										<th className="text-xs text-gray-400 font-semibold uppercase text-left py-2 px-3">
+											Asset
+										</th>
+										<th className="text-xs text-gray-400 font-semibold uppercase text-left py-2 px-3">
+											Status
+										</th>
+										<th className="text-xs text-gray-400 font-semibold uppercase text-left py-2 px-3">
+											Score
+										</th>
+										<th className="text-xs text-gray-400 font-semibold uppercase text-left py-2 px-3">
+											Time
+										</th>
+									</tr>
+								</thead>
+								<tbody>
+									{loading &&
+										[1, 2, 3, 4, 5].map((i) => (
+											<tr key={i} className="border-b border-gray-50">
+												{[1, 2, 3, 4].map((j) => (
+													<td key={j} className="py-3 px-3">
+														<Skeleton className="h-4 w-full" />
+													</td>
+												))}
+											</tr>
+										))}
+									{!loading && recentPredictions.length === 0 && (
+										<tr>
+											<td
+												colSpan={4}
+												className="py-8 text-center text-sm text-gray-400"
+											>
+												No predictions available.
+											</td>
+										</tr>
+									)}
+									{!loading &&
+										recentPredictions.map((p) => {
+											const badgeCls =
+												STATUS_BADGE[p.predicted_status.toLowerCase()] ??
+												"bg-gray-100 text-gray-700";
+											return (
+												<tr
+													key={p.prediction_id}
+													className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+												>
+													<td className="py-3 px-3 font-mono text-xs text-gray-700">
+														{p.asset_id}
+													</td>
+													<td className="py-3 px-3">
+														<span
+															className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badgeCls}`}
+														>
+															{p.predicted_status.toUpperCase()}
+														</span>
+													</td>
+													<td className="py-3 px-3 text-gray-600">
+														{p.anomaly_score.toFixed(3)}
+													</td>
+													<td className="py-3 px-3 text-gray-500 text-xs">
+														{formatDate(p.timestamp)}
+													</td>
+												</tr>
+											);
+										})}
+								</tbody>
+							</table>
 						</div>
-						<div>
-							<div className="text-xs text-gray-500">TEMPERATURE</div>
-							<div className="text-2xl font-bold">
-								82.4<span className="text-xs text-gray-500">°C</span>
-							</div>
-							<div className="mt-1 h-0.5 bg-yellow-500 rounded"></div>
-						</div>
-					</div>
-					<div className="bg-gray-50 rounded p-3">
-						<div className="text-xs text-gray-400 mb-1">
-							PREDICTIVE RUL (REMAINING USEFUL LIFE)
-						</div>
-						<div className="text-lg font-bold text-orange-500">14 DAYS</div>
-						<div className="text-xs text-red-500 mt-1">ACTION REQUIRED</div>
-					</div>
-				</div>
+					</CardContent>
+				</Card>
 
-				<div className="bg-white border border-gray-200 rounded p-4">
-					<div className="flex items-center justify-between mb-4">
-						<div className="text-sm font-semibold">⚙️ MOTOR UNIT B-044</div>
-						<span className="text-xs bg-yellow-500 text-white px-2 py-1 rounded">
-							WARNING
-						</span>
-					</div>
-					<div className="grid grid-cols-2 gap-4 mb-4">
-						<div>
-							<div className="text-xs text-gray-500">VIBRATION</div>
-							<div className="text-2xl font-bold">
-								2.11<span className="text-xs text-gray-500">mm/s</span>
-							</div>
-							<div className="mt-1 h-0.5 bg-green-500 rounded"></div>
+				<Card className="bg-white border-gray-200">
+					<CardHeader className="pb-3">
+						<CardTitle className="text-sm font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+							<Bell className="w-4 h-4 text-yellow-500" />
+							Recent Notifications
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="space-y-2">
+							{loading &&
+								[1, 2, 3, 4, 5].map((i) => (
+									<div
+										key={i}
+										className="flex gap-3 items-start p-3 rounded-lg border border-gray-100"
+									>
+										<Skeleton className="w-4 h-4 rounded-full flex-shrink-0 mt-0.5" />
+										<div className="flex-1 space-y-1.5">
+											<Skeleton className="h-3 w-24" />
+											<Skeleton className="h-3 w-full" />
+										</div>
+									</div>
+								))}
+							{!loading && notifications.length === 0 && (
+								<p className="py-8 text-center text-sm text-gray-400">
+									No recent notifications.
+								</p>
+							)}
+							{!loading &&
+								notifications.map((n) => {
+									const prob = getFailureProbability(n.payload);
+									const isHighRisk = prob !== null && prob >= 0.8;
+									const Icon = isHighRisk ? AlertCircle : AlertTriangle;
+									const iconCls = isHighRisk
+										? "text-red-500"
+										: n.type === "email"
+											? "text-blue-500"
+											: "text-yellow-500";
+									const labelCls = isHighRisk ? "text-red-500" : "text-gray-500";
+									const label = isHighRisk
+										? "HIGH RISK"
+										: n.type.toUpperCase();
+									return (
+										<div
+											key={n.id}
+											className="flex gap-3 items-start p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors"
+										>
+											<Icon
+												className={`w-4 h-4 flex-shrink-0 mt-0.5 ${iconCls}`}
+											/>
+											<div className="flex-1 min-w-0">
+												<div
+													className={`text-xs font-semibold ${labelCls} uppercase`}
+												>
+													{label}
+													{prob !== null && (
+														<span className="ml-2 font-normal text-gray-400">
+															{Math.round(prob * 100)}% failure probability
+														</span>
+													)}
+												</div>
+												<div className="text-xs text-gray-500 mt-0.5">
+													{formatDate(n.created_at)}
+												</div>
+											</div>
+										</div>
+									);
+								})}
 						</div>
-						<div>
-							<div className="text-xs text-gray-500">TEMPERATURE</div>
-							<div className="text-2xl font-bold">
-								74.2<span className="text-xs text-gray-500">°C</span>
-							</div>
-							<div className="mt-1 h-0.5 bg-orange-500 rounded"></div>
-						</div>
-					</div>
-					<div className="bg-gray-50 rounded p-3">
-						<div className="text-xs text-gray-400 mb-1">PREDICTIVE RUL</div>
-						<div className="text-lg font-bold text-green-600">124 DAYS</div>
-						<div className="text-xs text-gray-500 mt-1">MAINTAIN PLAN</div>
-					</div>
-				</div>
-
-				{/* Right Sidebar - Alerts */}
-				<div className="space-y-3">
-					<div className="bg-white border border-gray-200 rounded p-3">
-						<div className="flex gap-2 items-start">
-							<AlertCircle className="w-4 h-4 text-red-500 mt-1 flex-shrink-0" />
-							<div className="text-xs">
-								<div className="font-semibold text-red-500">CRITICAL</div>
-								<div className="text-gray-600 mt-1">
-									Bearing overheating detected in A-102
-								</div>
-								<div className="text-gray-400 text-xs mt-1">
-									Temp: TH-68 reached threshold 85°C
-								</div>
-							</div>
-						</div>
-					</div>
-
-					<div className="bg-white border border-gray-200 rounded p-3">
-						<div className="flex gap-2 items-start">
-							<AlertTriangle className="w-4 h-4 text-yellow-500 mt-1 flex-shrink-0" />
-							<div className="text-xs">
-								<div className="font-semibold text-yellow-500">WARNING</div>
-								<div className="text-gray-600 mt-1">
-									Vibration deviation B-044
-								</div>
-								<div className="text-gray-400 text-xs mt-1">
-									Harmonic resonance detected Phase 2
-								</div>
-							</div>
-						</div>
-					</div>
-
-					<div className="bg-white border border-gray-200 rounded p-3">
-						<div className="flex gap-2 items-start">
-							<CheckCircle className="w-4 h-4 text-blue-500 mt-1 flex-shrink-0" />
-							<div className="text-xs">
-								<div className="font-semibold text-blue-500">INFO</div>
-								<div className="text-gray-600 mt-1">
-									Routine scheduled for C-Series
-								</div>
-								<div className="text-gray-400 text-xs mt-1">
-									PM cycle starts in 24 hours
-								</div>
-							</div>
-						</div>
-					</div>
-
-					<div className="bg-white border border-gray-200 rounded p-3">
-						<div className="flex gap-2 items-start">
-							<AlertCircle className="w-4 h-4 text-red-500 mt-1 flex-shrink-0" />
-							<div className="text-xs">
-								<div className="font-semibold text-red-500">CRITICAL</div>
-								<div className="text-gray-600 mt-1">
-									Connection loss: Sensor Node 12
-								</div>
-								<div className="text-gray-400 text-xs mt-1">
-									Network packet drop &gt; 98%
-								</div>
-							</div>
-						</div>
-					</div>
-
-					<button
-						type="button"
-						className="w-full mt-2 text-xs text-gray-500 hover:text-gray-700 py-2"
-					>
-						VIEW ALL EVENTS
-					</button>
-				</div>
+					</CardContent>
+				</Card>
 			</div>
-
-			{/* Telemetry Chart */}
-			<div className="bg-white border border-gray-200 rounded p-4">
-				<div className="text-sm font-semibold mb-4">
-					SYSTEM-WIDE TELEMETRY (24H)
-				</div>
-				<div className="flex items-center gap-2 mb-4">
-					<div className="w-2 h-2 rounded-full bg-green-500"></div>
-					<span className="text-xs text-gray-500">LOAD</span>
-					<div className="w-2 h-2 rounded-full bg-orange-500 ml-4"></div>
-					<span className="text-xs text-gray-500">VIBRATION</span>
-				</div>
-				<div className="h-32 bg-gray-50 rounded flex items-center justify-center text-gray-400">
-					<svg
-						className="w-full h-full p-4"
-						viewBox="0 0 400 100"
-						preserveAspectRatio="none"
-						role="img"
-						aria-labelledby="system-telemetry-chart-title"
-					>
-						<title id="system-telemetry-chart-title">
-							System-wide telemetry chart showing load and vibration over 24
-							hours
-						</title>
-						<polyline
-							points="0,60 50,50 100,55 150,40 200,45 250,35 300,50 350,30 400,45"
-							fill="none"
-							stroke="#10b981"
-							strokeWidth="2"
-							opacity="0.6"
-						/>
-						<polyline
-							points="0,70 50,65 100,72 150,60 200,68 250,55 300,75 350,50 400,65"
-							fill="none"
-							stroke="#f59e0b"
-							strokeWidth="2"
-							opacity="0.6"
-						/>
-					</svg>
-				</div>
-			</div>
-		</>
+		</div>
 	);
 }
