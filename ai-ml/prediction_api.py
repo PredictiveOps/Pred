@@ -18,7 +18,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -61,6 +62,8 @@ app = FastAPI(
     description="Human-in-the-loop ML pipeline for predictive maintenance",
     version="1.0.0",
 )
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 # ============================================================================
@@ -107,6 +110,12 @@ class PredictionResponse(BaseModel):
     review_status: str
     reviewed: bool
     timestamp: datetime
+
+
+class PredictionListResponse(BaseModel):
+    tenant_id: str
+    count: int
+    predictions: list[PredictionResponse]
 
 
 class PredictionDetailResponse(PredictionResponse):
@@ -390,6 +399,60 @@ def get_pending_predictions(
             )
             for p in predictions
         ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/predictions", response_model=PredictionListResponse)
+def list_predictions(
+    request: Request,
+    device_id: Optional[str] = Query(None),
+    asset_id: Optional[str] = Query(None),
+    predicted_status: Optional[str] = Query(None),
+    review_status: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """List predictions for a tenant, scoped by X-Tenant-Id header."""
+    tenant_id = request.headers.get("X-Tenant-Id", "")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="X-Tenant-Id header is required")
+    try:
+        services = get_services(db)
+        pred_service = services["prediction"]
+
+        predictions, total = pred_service.list_predictions(
+            tenant_id=tenant_id,
+            device_id=device_id,
+            asset_id=asset_id,
+            predicted_status=predicted_status,
+            review_status=review_status,
+            limit=limit,
+            offset=offset,
+        )
+        return PredictionListResponse(
+            tenant_id=tenant_id,
+            count=total,
+            predictions=[
+                PredictionResponse(
+                    prediction_id=p.prediction_id,
+                    tenant_id=p.tenant_id,
+                    device_id=p.device_id,
+                    asset_id=p.asset_id,
+                    model_name=p.model_name,
+                    model_version=p.model_version,
+                    anomaly_score=p.anomaly_score,
+                    predicted_status=p.predicted_status,
+                    review_status=p.review_status,
+                    reviewed=p.reviewed,
+                    timestamp=p.created_at,
+                )
+                for p in predictions
+            ],
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

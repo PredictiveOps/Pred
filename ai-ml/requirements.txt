@@ -10,3 +10,4 @@ pydantic==2.13.3
 pydantic-settings==2.14.0
 requests==2.33.1
 kafka-python
+prometheus-fastapi-instrumentator==7.1.0
