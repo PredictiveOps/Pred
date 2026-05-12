@@ -281,9 +281,12 @@ services:
       MQTT_PASSWORD: ${MQTT_INGESTION_PASSWORD:-dev-ingestion-password}
       MQTT_TOPIC: sensors/data
       KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
-      KAFKA_TOPIC: ${KAFKA_TOPIC:-notifications}
-      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-notifications-service}
-      DATABASE_URL: ${NOTIFICATIONS_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/events}
+      KAFKA_TOPIC: ${EVENT_PROCESSING_KAFKA_TOPIC:-device-events}
+      KAFKA_GROUP_ID: ${EVENT_PROCESSING_KAFKA_GROUP_ID:-event-processing-service}
+      DATABASE_URL: ${EVENT_PROCESSING_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/events}
+      ML_FEATURES_TOPIC: ${ML_FEATURES_TOPIC:-ml-features}
+      AGGREGATION_INTERVAL_SECONDS: ${AGGREGATION_INTERVAL_SECONDS:-5}
+      AGGREGATION_BATCH_SIZE: ${AGGREGATION_BATCH_SIZE:-500}
     depends_on:
       postgres:
         condition: service_healthy
