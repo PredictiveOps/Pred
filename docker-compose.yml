@@ -317,6 +317,12 @@ services:
         condition: service_completed_successfully
     networks:
       - pred-network
+    healthcheck:
+      test: ["CMD-SHELL", "no_proxy=localhost wget -qO- http://localhost:8083/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     restart: on-failure
 
   ml-service:
