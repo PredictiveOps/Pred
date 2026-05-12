@@ -16,7 +16,7 @@ func TestRoutes_Registered(t *testing.T) {
 		{http.MethodGet, "/health"},
 		{http.MethodPost, "/devices/register"},
 		{http.MethodGet, "/devices/1"},
-		{http.MethodGet, "/tenants/1/devices"},
+		{http.MethodGet, "/devices"},
 		{http.MethodPut, "/devices/1/status"},
 		{http.MethodDelete, "/devices/1"},
 		{http.MethodGet, "/metrics"},
@@ -58,7 +58,7 @@ func TestRoutes_WrongMethod(t *testing.T) {
 		// GET /devices/:device_id (device_id="register") and returns 400.
 		{http.MethodPost, "/health"},
 		{http.MethodPost, "/devices/1"},
-		{http.MethodPost, "/tenants/1/devices"},
+		{http.MethodPost, "/devices"},
 		{http.MethodGet, "/devices/1/status"},
 	}
 

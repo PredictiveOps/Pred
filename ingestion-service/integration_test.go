@@ -267,7 +267,7 @@ func TestDeviceTelemetryPipeline(t *testing.T) {
 
 	// Unique device ID to avoid collisions with concurrent test runs.
 	deviceID := uint(time.Now().UnixNano()%1_000_000_000) + 9_000_000
-	tenantID := uint(1)
+	tenantID := "tenant-999"
 
 	t.Cleanup(func() { gdb.Delete(&db.Device{}, "device_id = ?", deviceID) })
 
@@ -315,10 +315,11 @@ func TestDeviceTelemetryPipeline(t *testing.T) {
 
 	// Step 2: register device via HTTP.
 	t.Run("DeviceRegistrationHTTP", func(t *testing.T) {
-		body := fmt.Sprintf(`{"device_id":%d,"tenant_id":%d}`, deviceID, tenantID)
+		body := fmt.Sprintf(`{"device_id":%d}`, deviceID)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest(http.MethodPost, "/devices/register", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Tenant-Id", tenantID)
 		httpRouter.ServeHTTP(w, req)
 
 		if w.Code != http.StatusCreated {
