@@ -24,6 +24,8 @@ type Notification = {
 	created_at: string;
 };
 
+console.log("PROD URL", process.env.NEXT_PUBLIC_API_GATEWAY_URL)
+
 const BASE_URL = `${process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8000"}/api/notifications`;
 console.log({ BASE_URL });
 

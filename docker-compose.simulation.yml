@@ -84,6 +84,8 @@ services:
       - ./mosquitto:/mosquitto/config
       - mosquitto_sim_data:/mosquitto/data
       - mosquitto_sim_log:/mosquitto/log
+    ports:
+      - "8883:8883"
     entrypoint: ["/bin/sh", "/mosquitto/config/entrypoint.sh"]
     healthcheck:
       test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/config/certs/ca.crt -u \"$${MQTT_INGESTION_USERNAME}\" -P \"$${MQTT_INGESTION_PASSWORD}\" -t '$$SYS/broker/version' -C 1 -W 5 >/dev/null 2>&1"]
@@ -128,6 +130,8 @@ services:
       REDIS_NONCE_TTL: 60s
     volumes:
       - ./mosquitto/certs:/mosquitto/certs:ro
+    ports:
+      - "8081:8081"
     depends_on:
       postgres-sim:
         condition: service_healthy
@@ -358,7 +362,6 @@ services:
       TENANT_ID: "tenant-001"
       SEND_INTERVAL_MIN: "5"
       SEND_INTERVAL_MAX: "30"
-      NO_PROXY: ${NO_PROXY:-},ingestion-service,mosquitto
       INGESTION_DB_URL: postgresql://postgres:postgres@postgres-sim:5432/ingestion_sim
     volumes:
       - ./mosquitto/certs:/mosquitto/certs:ro
