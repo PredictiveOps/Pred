@@ -14,6 +14,8 @@ import { fetchPredictions, type Prediction } from "@/lib/predictions-api";
 
 const DEFAULT_LIMIT = 10;
 
+type HumanFeedback = "correct" | "wrong";
+
 type ViewState = {
 	loading: boolean;
 	error?: string;
@@ -57,7 +59,20 @@ export default function PredictionsPage() {
 		predictions: [],
 		total: 0,
 	});
+	const [humanFeedback, setHumanFeedback] = useState<
+		Record<string, HumanFeedback>
+	>({});
 	const [page, setPage] = useState(0);
+
+	function setPredictionFeedback(
+		predictionId: string,
+		feedback: HumanFeedback,
+	) {
+		setHumanFeedback((prev) => ({
+			...prev,
+			[predictionId]: feedback,
+		}));
+	}
 
 	useEffect(() => {
 		if (status === "loading") {
@@ -127,40 +142,94 @@ export default function PredictionsPage() {
 									<th className="px-3">Anomaly Score</th>
 									<th className="px-3">Review</th>
 									<th className="px-3">Model</th>
+									<th className="px-3">Human Check</th>
 								</tr>
 							</thead>
 							<tbody>
-								{rows.map((prediction) => (
-									<tr
-										key={prediction.prediction_id}
-										className="rounded-lg bg-white shadow-xs ring-1 ring-gray-200"
-									>
-										<td className="px-3 py-3 text-gray-700">
-											{formatDate(prediction.timestamp)}
-										</td>
-										<td className="px-3 py-3 font-mono text-xs text-gray-700">
-											{prediction.asset_id}
-										</td>
-										<td className="px-3 py-3 font-mono text-xs text-gray-700">
-											{prediction.device_id}
-										</td>
-										<td className="px-3 py-3">
-											{statusBadge(prediction.predicted_status, STATUS_STYLES)}
-										</td>
-										<td className="px-3 py-3 text-gray-700">
-											{prediction.anomaly_score.toFixed(4)}
-										</td>
-										<td className="px-3 py-3">
-											{statusBadge(prediction.review_status, REVIEW_STYLES)}
-										</td>
-										<td className="px-3 py-3 text-gray-500">
-											{prediction.model_name}{" "}
-											<span className="text-gray-400">
-												v{prediction.model_version}
-											</span>
-										</td>
-									</tr>
-								))}
+								{rows.map((prediction) => {
+									const feedback = humanFeedback[prediction.prediction_id];
+
+									return (
+										<tr
+											key={prediction.prediction_id}
+											className="rounded-lg bg-white shadow-xs ring-1 ring-gray-200"
+										>
+											<td className="px-3 py-3 text-gray-700">
+												{formatDate(prediction.timestamp)}
+											</td>
+											<td className="px-3 py-3 font-mono text-xs text-gray-700">
+												{prediction.asset_id}
+											</td>
+											<td className="px-3 py-3 font-mono text-xs text-gray-700">
+												{prediction.device_id}
+											</td>
+											<td className="px-3 py-3">
+												{statusBadge(
+													prediction.predicted_status,
+													STATUS_STYLES,
+												)}
+											</td>
+											<td className="px-3 py-3 text-gray-700">
+												{prediction.anomaly_score.toFixed(4)}
+											</td>
+											<td className="px-3 py-3">
+												{statusBadge(prediction.review_status, REVIEW_STYLES)}
+											</td>
+											<td className="px-3 py-3 text-gray-500">
+												{prediction.model_name}{" "}
+												<span className="text-gray-400">
+													v{prediction.model_version}
+												</span>
+											</td>
+											<td className="px-3 py-3">
+												<div className="flex min-w-36 items-center gap-2">
+													<Button
+														type="button"
+														size="xs"
+														variant={
+															feedback === "correct" ? "default" : "outline"
+														}
+														className={
+															feedback === "correct"
+																? "bg-green-600 text-white hover:bg-green-700"
+																: "border-green-200 text-green-700 hover:bg-green-50"
+														}
+														aria-pressed={feedback === "correct"}
+														onClick={() =>
+															setPredictionFeedback(
+																prediction.prediction_id,
+																"correct",
+															)
+														}
+													>
+														Correct
+													</Button>
+													<Button
+														type="button"
+														size="xs"
+														variant={
+															feedback === "wrong" ? "destructive" : "outline"
+														}
+														className={
+															feedback === "wrong"
+																? ""
+																: "border-red-200 text-red-700 hover:bg-red-50"
+														}
+														aria-pressed={feedback === "wrong"}
+														onClick={() =>
+															setPredictionFeedback(
+																prediction.prediction_id,
+																"wrong",
+															)
+														}
+													>
+														Wrong
+													</Button>
+												</div>
+											</td>
+										</tr>
+									);
+								})}
 							</tbody>
 						</table>
 					</div>
