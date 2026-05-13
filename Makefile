@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose -f docker-compose.test.yml
 
-.PHONY: test-all test-down-all coverage-summary clean-test create-mosquitto-certificates format
+.PHONY: test-all test-down-all coverage-summary clean-test create-mosquitto-certificates create-device-keys format
 
 format:
 	gofmt -w notifications-service event-processing-service ingestion-service
@@ -50,6 +50,15 @@ simulate-cleanup:
 simulate:
 	$(MAKE) simulate-cleanup
 	docker compose -f docker-compose.simulation.yml -p pred-simulation up --build
+
+DEVICE_ID ?= 1
+create-device-keys:
+	mkdir -p ./device-simulation/keys/device-$(DEVICE_ID)
+	openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 \
+	  -out ./device-simulation/keys/device-$(DEVICE_ID)/private.pem
+	openssl pkey -in ./device-simulation/keys/device-$(DEVICE_ID)/private.pem \
+	  -pubout -out ./device-simulation/keys/device-$(DEVICE_ID)/public.pem
+	@echo "Keys written to device-simulation/keys/device-$(DEVICE_ID)/"
 
 create-mosquitto-certificates:
 	mkdir -p ./mosquitto/certs
